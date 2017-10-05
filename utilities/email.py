@@ -47,6 +47,9 @@ class Mailer(object):
             port: port number; an `int`, but can be a `str` (will be converted in the function).
             account: email account on the server.
             passwd: password for `account` on `host`.
+
+        If you use a Gmail account to send emails, use
+        'smtp.gmail.com' for `host` and 587 for `port`.
         """
         self._mail_server_args = dict(
             host=host, port=int(port), account=account, passwd=passwd)
