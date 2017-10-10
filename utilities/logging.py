@@ -7,6 +7,9 @@ Usually the 'level' argument is the only argument one needs to customize::
   from utilities.logging import config_logger
   config_logger(level='info')
 
+If `level` is not specified, environment variable `LOGLEVEL` is used;
+if that is not set, a default level (currently 'info') is used.
+
 Do not call this in library modules.
 Library modules should have ::
 
@@ -18,6 +21,7 @@ destination of the log message, etc.
 
 import logging
 from logging import Formatter
+import os
 import time
 
 #import os
@@ -39,11 +43,13 @@ logging.logProcesses = 0
 
 def _make_config(
         *,
-        level='info',
+        level=None,
         format='[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
         use_utc=True,
         datefmt='%Y-%m-%d %H:%M:%S',
         **kwargs):
+    if level is None:
+        level = os.environ.get('LOGLEVEL', 'info')
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR, logging.CRITICAL):
         level = getattr(logging, level.upper())
