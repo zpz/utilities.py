@@ -73,12 +73,6 @@ def get_config_file(topic):
             the full path of the config file is ``${CFGDIR}/topic``.
 
             If the named file is not found, ``ConfigFileNotFoundError`` is raised.
-
-            Examples::
-
-                python-common/mysql.cfg
-                cross-device/d2d_logistic_model_a.cfg
-                data-pipelines/luigi.cfg
     """
     topic = os.path.join(os.environ['CFGDIR'], topic)
     if os.path.isfile(topic):
