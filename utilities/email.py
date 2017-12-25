@@ -23,6 +23,8 @@ def _generate_msg(*, send_from, send_to, subject, text, files=None):
     msg['Subject'] = subject
     msg.attach(MIMEText(text, 'plain'))
 
+    if files is None:
+        files = []
     assert isinstance(files, list)
     if files is None:
         files = []
