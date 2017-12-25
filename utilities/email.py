@@ -8,12 +8,20 @@ import threading
 
 
 def _generate_msg(*, send_from, send_to, subject, text, files=None):
+    """
+    Args:
+        send_to: comma-separated email addresses.
+        files: either a list of full-path file names,
+            or a list of tuples, each tuple containing
+            file name (no path; intended to be meaningful to the email receiving party)
+            and the file content as a binary blob.
+    """
     msg = MIMEMultipart()
     msg['From'] = send_from
     msg['Reply-to'] = send_from
     msg['To'] = send_to
     msg['Subject'] = subject
-    msg.attach(MIMEText(text))
+    msg.attach(MIMEText(text, 'plain'))
 
     assert isinstance(files, list)
     if files is None:
@@ -69,7 +77,9 @@ class Mailer(object):
         # except Exception as e:
         # Had trouble using 'sudo' with password passing in.
         server = smtplib.SMTP(self._mail_server_args['host'], self._mail_server_args['port'])
+        #server.ehlo()
         server.starttls()
+        #server.ehlo()
         server.login(self._mail_server_args['account'], self._mail_server_args['passwd'])
         return server
 
@@ -98,8 +108,6 @@ class Mailer(object):
 
             # And pass the object 'my_mailer' around to send emails from within other code blocks.
         """
-        if files is None:
-            files = []
         msg = _generate_msg(send_from=send_from, send_to=send_to, subject=subject, text=text, files=files)
         server = self._connect()
         thr = threading.Thread(
@@ -107,4 +115,6 @@ class Mailer(object):
             kwargs={'server': server, 'msg': msg},
             )
         thr.start()
+
+        # TODO: take care of `server.quit()`.
 
