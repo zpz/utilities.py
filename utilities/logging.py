@@ -4,7 +4,6 @@ Configure logging, mainly the format.
 A call to the function ``config_logger`` in a launching script is all that is needed to set up the logging format.
 Usually the 'level' argument is the only argument one needs to customize::
 
-  from utilities.logging import config_logger
   config_logger(level='info')
 
 If `level` is not specified, environment variable `LOGLEVEL` is used;
@@ -23,6 +22,7 @@ import logging
 from logging import Formatter
 import os
 import time
+from typing import Union
 
 #import os
 # raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')
@@ -43,11 +43,11 @@ logging.logProcesses = 0
 
 def _make_config(
         *,
-        level=None,
-        format='[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
-        use_utc=True,
-        datefmt='%Y-%m-%d %H:%M:%S',
-        **kwargs):
+        level: Union[str, int]=None,
+        format: str='[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
+        use_utc: bool=True,
+        datefmt: str='%Y-%m-%d %H:%M:%S',
+        **kwargs) -> dict:
     if level is None:
         level = os.environ.get('LOGLEVEL', 'info')
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
@@ -66,6 +66,6 @@ def _make_config(
                 **kwargs)
 
 
-def config_logger(**kwargs):
+def config_logger(**kwargs) -> None:
     logging.basicConfig(**_make_config(**kwargs))
 

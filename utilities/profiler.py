@@ -2,12 +2,13 @@ import cProfile, pstats
 from functools import wraps
 from io import StringIO
 import time
+from typing import Callable
 import warnings
 
 import line_profiler
 
 
-def profiled(top=32, sort_by=None, prof_file=None):
+def profiled(top: int=32, sort_by: str=None, prof_file: str=None) -> Callable[[Callable], Callable]:
     """
     Print out profiling info for a test function,
     and optionally dump the profile result in specified file for later inspection.
@@ -78,7 +79,7 @@ def profiled(top=32, sort_by=None, prof_file=None):
     return mydecorator
 
 
-def lineprofiled(*funcs):
+def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
     """
     A line-profiling decorator.
 
@@ -137,7 +138,7 @@ def lineprofiled(*funcs):
     return mydecorator
 
 
-def timed(func):
+def timed(func: Callable) -> Callable:
     @wraps(func)
     def profiled_func(*args, **kwargs):
         time0 = time.perf_counter()
@@ -150,5 +151,30 @@ def timed(func):
         return result
 
     return profiled_func
+
+
+class Timer:
+    def __init__(self):
+        self._running = False
+
+    def start(self):
+        self._t_start = time.perf_counter()
+        self._t_stop = None
+        self._running = True
+
+    def stop(self):
+        if self._running:
+            self._t_stop = time.perf_counter()
+            self._running = False
+
+    @property
+    def seconds(self):
+        if self._running:
+            return time.perf_counter() - self._t_start
+        return self._t_stop - self._t_start
+
+    @property
+    def milliseconds(self):
+        return self.seconds * 1000
 
 
