@@ -28,7 +28,8 @@ class HiveReaderMixin:
     def has_table(self, db_name: str, tb_name: str) -> bool:
         return self._cursor.table_exists(tb_name, db_name)
 
-    def get_table_schema(self, db_name: str, tb_name: str) -> Sequence[Tuple[str, str]]:
+    def get_table_schema(self, db_name: str,
+                         tb_name: str) -> Sequence[Tuple[str, str]]:
         return self._cursor.get_table_schema(tb_name, db_name)
 
 
@@ -58,4 +59,3 @@ class HiveWriter(SQLWriter, HiveWriterMixin):
             user=user,
             auth_mechanism=auth_mechanism,
             **kwargs)
-

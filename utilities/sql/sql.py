@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 
 
 class SQLExecutor(metaclass=abc.ABCMeta):
-
-    def __init__(self, *, conn_func: Callable, cursor_args: dict=None, **conn_args) -> None:
+    def __init__(self,
+                 *,
+                 conn_func: Callable,
+                 cursor_args: dict = None,
+                 **conn_args) -> None:
         """
         Args:
             conn_func: function 'connect' of the appropriate class.
@@ -55,14 +58,15 @@ class SQLExecutor(metaclass=abc.ABCMeta):
         try:
             self._conn = self._conn_func(**self._conn_args)
         except:
-            logger.error('Failed to connect to server with arguments %s' %
-                         str(self._conn_args))
+            logger.error('Failed to connect to server with arguments %s' % str(
+                self._conn_args))
             raise
         try:
             self._cursor = self._conn.cursor(**self._cursor_args)
         except:
-            logger.error('Failed to create cursor on connection with arguments %s' %
-                         str(self._cursor_args))
+            logger.error(
+                'Failed to create cursor on connection with arguments %s' %
+                str(self._cursor_args))
             raise
 
         self._cursor.arraysize = 100000
@@ -87,7 +91,6 @@ class SQLExecutor(metaclass=abc.ABCMeta):
 
 
 class SQLReader(SQLExecutor, metaclass=abc.ABCMeta):
-
     def execute(self, sql: str):
         assert len(split_sql(sql)) == 1
         self._execute(sql)
@@ -98,9 +101,8 @@ class SQLReader(SQLExecutor, metaclass=abc.ABCMeta):
         """
         There is no reliable way to determine this.
         """
-        return (self._cursor.rowcount > 0 or
-                self._cursor.rowcount is None or
-                self._cursor.rowcount == -1)
+        return (self._cursor.rowcount > 0 or self._cursor.rowcount is None
+                or self._cursor.rowcount == -1)
 
     def fetchall(self) -> Tuple[Sequence[str], Sequence[Sequence]]:
         """
@@ -138,7 +140,7 @@ class SQLReader(SQLExecutor, metaclass=abc.ABCMeta):
             return pd.DataFrame.from_records(rows, columns=names)
         return pd.DataFrame()
 
-    def rowcount(self, sql: str=None) -> int:
+    def rowcount(self, sql: str = None) -> int:
         """
         Args:
             sql: if ``None``, return the row count of the last SQL statement executed.
@@ -185,7 +187,6 @@ class SQLReader(SQLExecutor, metaclass=abc.ABCMeta):
 
 
 class SQLWriter(SQLExecutor, metaclass=abc.ABCMeta):
-
     def execute(self, sql: str):
         """
         Args:
@@ -206,4 +207,3 @@ class SQLWriter(SQLExecutor, metaclass=abc.ABCMeta):
 
     def __call__(self, sql) -> None:
         return self.write(sql)
-

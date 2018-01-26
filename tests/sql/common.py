@@ -9,7 +9,8 @@ def do_read(reader):
 
     print()
     print('--- sample from table {} ---'.format(tb_name))
-    sql = "SELECT * FROM {}.{} WHERE d='2016-09-01' AND h='1800' LIMIT 3".format(db_name, tb_name)
+    sql = "SELECT * FROM {}.{} WHERE d='2016-09-01' AND h='1800' LIMIT 3".format(
+        db_name, tb_name)
     reader.execute(sql)
     v = reader.fetchall_pandas()
     print(v)
@@ -70,4 +71,3 @@ def do_write(reader, writer):
         DROP TABLE {db}.{tb};
         """.format(db=db_name, tb=TMP_TB_NAME))
     assert TMP_TB_NAME not in reader.get_tables(db_name)
-

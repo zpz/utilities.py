@@ -31,7 +31,11 @@ class PostgresReader(SQLReader, PostgresMixin):
     def __init__(self, *, dbname, host, port, user, password, **kwargs):
         super().__init__(
             conn_func=pg2.connect,
-            dbname=dbname, host=host, port=port, user=user, password=password,
+            dbname=dbname,
+            host=host,
+            port=port,
+            user=user,
+            password=password,
             **kwargs)
 
     def get_databases(self):
@@ -48,7 +52,8 @@ class PostgresReader(SQLReader, PostgresMixin):
         # A 'lazy' solution
         # return tb_name in self.get_tables()
 
-        sql = "SELECT exists(SELECT relname FROM pg_class WHERE relname = '{}')".format(tb_name)
+        sql = "SELECT exists(SELECT relname FROM pg_class WHERE relname = '{}')".format(
+            tb_name)
         return self.read(sql)
 
     def get_table_schema(self, tb_name):
@@ -60,7 +65,8 @@ class PostgresReader(SQLReader, PostgresMixin):
         return self.read(sql)
 
     def get_table_columns(self, tb_name):
-        sql = "SELECT column_name from information_schema.columns WHERE table_name = '{}'".format(tb_name)
+        sql = "SELECT column_name from information_schema.columns WHERE table_name = '{}'".format(
+            tb_name)
         headers, rows = self.execute(sql).fetchall()
         return [v[0] for v in rows]
 
@@ -69,9 +75,12 @@ class PostgresWriter(SQLWriter):
     def __init__(self, *, dbname, host, port, user, password, **kwargs):
         super().__init__(
             conn_func=pg2.connect,
-            dbname=dbname, host=host, port=port, user=user, password=password,
+            dbname=dbname,
+            host=host,
+            port=port,
+            user=user,
+            password=password,
             **kwargs)
 
     def commit(self):
         self._conn.commit()
-

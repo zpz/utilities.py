@@ -19,7 +19,8 @@ def load_bytes(b: bytes):
     return joblib.load(io.BytesIO(b))
 
 
-def dump_file(x, filename: str, overwrite: bool = True, compress: int = 9) -> None:
+def dump_file(x, filename: str, overwrite: bool = True,
+              compress: int = 9) -> None:
     """
     Persist Python object (e.g. fitted model) `x` into disk file `filename`.
     """
@@ -34,4 +35,3 @@ def load_file(filename: str):
     with open(filename, 'rb') as f:
         z = f.read()
     return load_bytes(z)
-

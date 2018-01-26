@@ -7,4 +7,3 @@ class RedshiftReader(PostgresReader):
 
 class RedshiftWriter(PostgresWriter):
     pass
-

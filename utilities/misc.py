@@ -1,6 +1,5 @@
 from typing import Iterable
 
-
 basestring = (str, bytes)
 
 
@@ -55,4 +54,3 @@ def is_collection(obj) -> bool:
     False
     """
     return is_iterable(obj) and not isinstance(obj, basestring)
-

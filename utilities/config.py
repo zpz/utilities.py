@@ -45,7 +45,9 @@ For complex values, use JSON strings. Note, quotation marks in JSON strings shou
 import configparser
 
 
-def read_ini_config(file_name: str, section_name: str = None, allow_no_value: bool = True) -> dict:
+def read_ini_config(file_name: str,
+                    section_name: str = None,
+                    allow_no_value: bool = True) -> dict:
     """
     This is a convenience function for getting the content of an INI-style config file
     (for reading only).
@@ -67,4 +69,3 @@ def read_ini_config(file_name: str, section_name: str = None, allow_no_value: bo
     if section_name:
         return conf[section_name]
     return conf
-

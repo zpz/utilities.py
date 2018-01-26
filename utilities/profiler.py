@@ -8,7 +8,8 @@ import warnings
 import line_profiler
 
 
-def profiled(top: int=32, sort_by: str=None, prof_file: str=None) -> Callable[[Callable], Callable]:
+def profiled(top: int = 32, sort_by: str = None,
+             prof_file: str = None) -> Callable[[Callable], Callable]:
     """
     Print out profiling info for a test function,
     and optionally dump the profile result in specified file for later inspection.
@@ -70,7 +71,8 @@ def profiled(top: int=32, sort_by: str=None, prof_file: str=None) -> Callable[[C
             if prof_file:
                 profile.dump_stats(prof_file)
                 print('')
-                print('profiling results are saved in', prof_file, '; view its content using `snakeviz`')
+                print('profiling results are saved in', prof_file,
+                      '; view its content using `snakeviz`')
 
             return result
 
@@ -100,10 +102,12 @@ def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
                 y = f(b)
                 s(x, y)
     """
+
     def mydecorator(func):
         nonlocal funcs
         if not funcs:
             funcs = [func]
+
         @wraps(func)
         def profiled_func(*args, **kwargs):
             func_names = [f.__name__ for f in funcs]
@@ -146,7 +150,8 @@ def timed(func: Callable) -> Callable:
         time1 = time.perf_counter()
 
         print('')
-        print('Function `', func.__name__, '` took ', time1 - time0, 'seconds to finish')
+        print('Function `', func.__name__, '` took ', time1 - time0,
+              'seconds to finish')
         print('')
         return result
 
@@ -176,5 +181,3 @@ class Timer:
     @property
     def milliseconds(self):
         return self.seconds * 1000
-
-

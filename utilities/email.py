@@ -31,14 +31,16 @@ def _generate_msg(*, send_from, send_to, subject, text, files=None):
     for f in files:
         part = MIMEBase('application', "octet-stream")
         if isinstance(f, str):
-            part.set_payload( open(f,"rb").read() )
+            part.set_payload(open(f, "rb").read())
             encode_base64(part)
-            part.add_header('Content-Disposition', 'attachment; filename="%s"' % os.path.basename(f))
+            part.add_header('Content-Disposition',
+                            'attachment; filename="%s"' % os.path.basename(f))
         else:
             assert isinstance(f, tuple)
-            part.set_payload( f[1] )
+            part.set_payload(f[1])
             encode_base64(part)
-            part.add_header('Content-Disposition', 'attachment; filename="{}"'.format(f[0]))
+            part.add_header('Content-Disposition',
+                            'attachment; filename="{}"'.format(f[0]))
 
         msg.attach(part)
 
@@ -78,11 +80,13 @@ class Mailer(object):
         #     raise Exception('no SMTP server on localhost')
         # except Exception as e:
         # Had trouble using 'sudo' with password passing in.
-        server = smtplib.SMTP(self._mail_server_args['host'], self._mail_server_args['port'])
+        server = smtplib.SMTP(self._mail_server_args['host'],
+                              self._mail_server_args['port'])
         #server.ehlo()
         server.starttls()
         #server.ehlo()
-        server.login(self._mail_server_args['account'], self._mail_server_args['passwd'])
+        server.login(self._mail_server_args['account'],
+                     self._mail_server_args['passwd'])
         return server
 
     def send(self, *, send_from, send_to, subject, text, files=None):
@@ -110,13 +114,18 @@ class Mailer(object):
 
             # And pass the object 'my_mailer' around to send emails from within other code blocks.
         """
-        msg = _generate_msg(send_from=send_from, send_to=send_to, subject=subject, text=text, files=files)
+        msg = _generate_msg(
+            send_from=send_from,
+            send_to=send_to,
+            subject=subject,
+            text=text,
+            files=files)
         server = self._connect()
         thr = threading.Thread(
             target=_send_mail,
-            kwargs={'server': server, 'msg': msg},
-            )
+            kwargs={'server': server,
+                    'msg': msg},
+        )
         thr.start()
 
         # TODO: take care of `server.quit()`.
-

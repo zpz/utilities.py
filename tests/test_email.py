@@ -6,6 +6,7 @@ config_test()
 send_from = 'abc@my.com'
 send_to = 'def@gmail.com'
 
+
 def test_mailer():
     print('initiate Mailer from "{}" to "{}"'.format(send_from, send_to))
     ff = Mailer('abc', send_from, send_to)

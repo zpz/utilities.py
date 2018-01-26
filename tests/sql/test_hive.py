@@ -27,4 +27,3 @@ def test_hive_read_iter(reader):
 
 def test_hive_write(reader, writer):
     do_write(reader, writer)
-

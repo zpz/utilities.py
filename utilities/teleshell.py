@@ -69,4 +69,3 @@ class TeleShell(object):
             print(line, end='')
         if error is not None:
             print(error)
-

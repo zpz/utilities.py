@@ -38,7 +38,10 @@ class MySQLWriter(SQLWriter):
     def __init__(self, *, host, port, user, password, **kwargs):
         super().__init__(
             conn_func=pymysql.connect,
-            host=host, port=port, user=user, passwd=password,
+            host=host,
+            port=port,
+            user=user,
+            passwd=password,
             **kwargs)
 
     def commit(self):
@@ -46,4 +49,3 @@ class MySQLWriter(SQLWriter):
 
     def rollback(self):
         self._conn.rollback()
-

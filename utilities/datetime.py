@@ -50,4 +50,3 @@ def tzdate_str(tzname):
         tzname: the ISO standard timezone name, such as ``Africa/Cairo``, ``America/Los_Angeles``.
     """
     return tzdate(tzname).strftime("%Y-%m-%d")
-

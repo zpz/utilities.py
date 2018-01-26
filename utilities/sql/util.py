@@ -32,7 +32,7 @@ def split_sql(sql: str) -> Sequence[str]:
     return [cleanse(x) for x in cleanse(sql).split(';\n') if x]
 
 
-def pretty_sql(sql: str, lpad: str='        ') -> str:
+def pretty_sql(sql: str, lpad: str = '        ') -> str:
     """
     Convert a SQL statement(s) into readable format (nicely line-split, indented, and aligned)
     suitable for printing and inspection.
@@ -52,6 +52,7 @@ class ColumnMapper(object):
     """
     Definition of mapping from columns in a source table to a single column in a target table.
     """
+
     def __init__(self, name, type, select=None):
         """
         Args:
@@ -99,18 +100,11 @@ class ColumnMapper(object):
         if select == self.name:
             select = None
         if select:
-            return "{}('{}', '{}', '{}')".format(
-                self.__class__.__name__,
-                self.name,
-                self.type,
-                select
-            )
+            return "{}('{}', '{}', '{}')".format(self.__class__.__name__,
+                                                 self.name, self.type, select)
         else:
-            return "{}('{}', '{}')".format(
-                self.__class__.__name__,
-                self.name,
-                self.type
-            )
+            return "{}('{}', '{}')".format(self.__class__.__name__, self.name,
+                                           self.type)
 
 
 class RowMapper(object):
@@ -118,6 +112,7 @@ class RowMapper(object):
 
     A ``RowMapper`` is a list of :class:`ColumnMapper` s.
     """
+
     def __init__(self, *column_mappers):
         """
         Args:
@@ -134,18 +129,16 @@ class RowMapper(object):
         """
         if column_mappers:
             self._col_mappers = [
-                v if isinstance(v, ColumnMapper)
-                else ColumnMapper(*v)
-                for v in column_mappers]
+                v if isinstance(v, ColumnMapper) else ColumnMapper(*v)
+                for v in column_mappers
+            ]
         else:
             self._col_mappers = []
 
     def add_cols(self, *column_mappers):
         self._col_mappers.extend(
-            v if isinstance(v, ColumnMapper)
-            else ColumnMapper(*v)
-            for v in column_mappers
-        )
+            v if isinstance(v, ColumnMapper) else ColumnMapper(*v)
+            for v in column_mappers)
         return self
 
     @property
@@ -169,7 +162,6 @@ class RowMapper(object):
             table_or_sql_in.as_subclause,
         )
         return pretty_sql(sql)
-
 
 
 def select_to_table(sql_select, table_out, col_defs=None):
@@ -196,7 +188,8 @@ def select_to_table(sql_select, table_out, col_defs=None):
         ;
         INSERT OVERWRITE TABLE {t_out}
         {select}\
-        """.format(t_out=table_out, defs=col_defs, select=sql_select)
+        """.format(
+            t_out=table_out, defs=col_defs, select=sql_select)
     else:
         sql = """\
         DROP TABLE IF EXISTS {t_out}
@@ -205,7 +198,7 @@ def select_to_table(sql_select, table_out, col_defs=None):
             STORED AS PARQUET
         AS
         {select}\
-        """.format(t_out=table_out, select=sql_select)
+        """.format(
+            t_out=table_out, select=sql_select)
 
     return pretty_sql(sql)
-

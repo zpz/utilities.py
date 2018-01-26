@@ -57,14 +57,15 @@ def make_schema(name: str, value: Any, namespace: str = None) -> str:
 
 def dump_bytes(schema: str, value: Any) -> bytes:
     stream = BytesIO()
-    with DataFileWriter(stream, DatumWriter(), avro.schema.Parse(schema)) as writer:
+    with DataFileWriter(stream, DatumWriter(),
+                        avro.schema.Parse(schema)) as writer:
         writer.append(value)
         writer.flush()
         stream.seek(0)
         return stream.getvalue()
 
 
-def load_bytes(b: bytes, return_schema: bool=False):
+def load_bytes(b: bytes, return_schema: bool = False):
     with DataFileReader(BytesIO(b), DatumReader()) as reader:
         value = list(reader)
         if len(value) == 1:
@@ -73,4 +74,3 @@ def load_bytes(b: bytes, return_schema: bool=False):
             schema = reader.meta['avro.schema'].decode()
             return value, schema
         return value
-

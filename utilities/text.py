@@ -45,7 +45,12 @@ def numpy_to_serializable(obj):
     if isinstance(obj, np.ndarray):
         return {'numpy.ndarray': obj.tolist()}
     if isinstance(obj, (np.integer, np.floating)):
-        return {'numpy.scalar': {'type': obj.dtype.type.__name__, 'value': np.asscalar(obj)}}
+        return {
+            'numpy.scalar': {
+                'type': obj.dtype.type.__name__,
+                'value': np.asscalar(obj)
+            }
+        }
     if isinstance(obj, dict):
         return type(obj)((k, numpy_to_serializable(v)) for k, v in obj.items())
     if isinstance(obj, (list, tuple)):
@@ -74,9 +79,7 @@ def numpy_from_serializable(obj):
             key = list(obj.keys())[0]
             val = obj[key]
             if key == 'pandas.DataFrame':
-                return pd.DataFrame(
-                    val['columns'],
-                    index=val['index'])
+                return pd.DataFrame(val['columns'], index=val['index'])
             if key == 'pandas.Series':
                 return pd.Series(val['values'], index=val['index'])
             if key == 'numpy.ndarray':
@@ -87,4 +90,3 @@ def numpy_from_serializable(obj):
     if isinstance(obj, (list, tuple)):
         return type(obj)(numpy_from_serializable(v) for v in obj)
     return obj
-
