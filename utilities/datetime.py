@@ -1,11 +1,3 @@
-"""
-This module gathers some datetime functions.
-
-For the very short functions in this module,
-the user may want to simply copy these examples instead of ``import`` ing
-this module, while keeping this module as a reference to look up.
-"""
-
 from datetime import datetime
 from pytz import timezone
 

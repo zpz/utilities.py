@@ -7,32 +7,35 @@ from avro.datafile import DataFileReader, DataFileWriter
 from avro.io import DatumReader, DatumWriter
 
 
-def _make_schema(x) -> Union[str, dict]:
+def _make_schema(name, x) -> Union[str, dict]:
+    assert isinstance(name, str)
+
     if isinstance(x, int):
-        return "int"
+        return {'name': name, 'type': "int"}
     if isinstance(x, float):
-        return 'double'
+        return {'name': name, 'type': 'double'}
     if isinstance(x, str):
-        return 'string'
+        return {'name': name, 'type': 'string'}
     if isinstance(x, dict):
-        z = {'type': 'record'}
         fields = []
         for key, val in x.items():
-            assert isinstance(key, str)
-            zz = _make_schema(val)
-            if not isinstance(zz, str):
-                assert isinstance(zz, dict)
-                zz['name'] = key
-            fields.append({'name': key, 'type': zz})
-        z['fields'] = fields
-        return z
+            z = _make_schema(key, val)
+            if len(z) < 3:
+                fields.append(z)
+            else:
+                fields.append({'name': key, 'type': z})
+        return {'name': name, 'type': 'record', 'fields': fields}
     if isinstance(x, list):
-        assert x
-        z0 = _make_schema(x[0])
+        assert len(x) > 0
+        z0 = _make_schema(name, x[0])
         if len(x) > 1:
             for v in x[1:]:
-                assert _make_schema(v) == z0
-        return {'type': 'array', 'items': z0}
+                assert _make_schema(name, v) == z0
+        if len(z0) < 3:
+            items = z0['type']
+        else:
+            items = z0
+        return {'name': name, 'type': 'array', 'items': items}
 
     raise Exception('unrecognized value of type "' + type(x).__name__ + '"')
 
@@ -44,14 +47,7 @@ def make_schema(name: str, value: Any, namespace: str = None) -> str:
     `value` is a pure Python object with simple data structures including
     scalar, list, and dict. Some nesting is allowed.
     """
-    sch = {'name': name}
-    if namespace:
-        sch['namespace'] = namespace
-    z = _make_schema(value)
-    if isinstance(z, str):
-        sch['type'] = z
-    else:
-        sch = {**sch, **z}
+    sch = {'namespace': namespace, **_make_schema(name, value)}
     return json.dumps(sch)
 
 
@@ -66,6 +62,9 @@ def dump_bytes(schema: str, value: Any) -> bytes:
 
 
 def load_bytes(b: bytes, return_schema: bool = False):
+    '''
+    The use case is that the stream contains only one record.
+    '''
     with DataFileReader(BytesIO(b), DatumReader()) as reader:
         value = list(reader)
         if len(value) == 1:

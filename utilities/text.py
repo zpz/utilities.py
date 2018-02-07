@@ -29,6 +29,8 @@ def round_floats(obj, ndigits=2):
     return obj
 
 
+# Note: take a look at 'serde.py'.
+# Might be better option.
 def numpy_to_serializable(obj):
     """
     Transform Numpy and pandas components of a data object so that
