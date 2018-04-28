@@ -219,7 +219,7 @@ def _make_schema(x, name: str) -> Union[str, dict]:
 
 
 def make_schema(value, name: str,
-                namespace: str = 'mars.groundtruth.com') -> str:
+                namespace: str) -> str:
     '''
     `value` is a `dict` whose members are either 'simple types' or 'compound types'.
 
@@ -239,8 +239,8 @@ def make_schema(value, name: str,
 # Using `DataFileWriter` instead of the barebone `DatumWriter`,
 # the schema is included in the resultant byte array.
 def dump_bytes(value,
-               name: str = 'data',
-               namespace: str = 'mars.groundtruth.com') -> bytes:
+               name: str,
+               namespace: str) -> bytes:
     schema = make_schema(value, name, namespace)
     buffer = io.BytesIO()
     with DataFileWriter(buffer, schema) as writer:
