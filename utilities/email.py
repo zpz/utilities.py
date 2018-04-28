@@ -123,8 +123,10 @@ class Mailer(object):
         server = self._connect()
         thr = threading.Thread(
             target=_send_mail,
-            kwargs={'server': server,
-                    'msg': msg},
+            kwargs={
+                'server': server,
+                'msg': msg
+            },
         )
         thr.start()
 

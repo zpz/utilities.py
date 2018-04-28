@@ -3,49 +3,7 @@ import os
 import textwrap
 from typing import Sequence
 
-import sqlparse
-
-
-def split_sql(sql: str) -> Sequence[str]:
-    """
-    Split a sequence of SQL statements into individual statements.
-
-    The input is a block of text formatted like ::
-
-        CREATE TABLE ...
-        ;
-        INSERT INTO ...
-        SELECT ...
-        ;
-        DROP TABLE ...
-
-
-    ``;\\n`` is treated as the separator between SQL statements.
-
-    For each single SQL statement in the resultant list,
-    trailing ';', line break, and spaces are removed;
-    leading ';' and line break are removed;
-    leading spaces are not removed b/c that may be part of intentional formatting
-    for alignment.
-    """
-    cleanse = lambda x: x.rstrip(' ;\n').lstrip(';\n')
-    return [cleanse(x) for x in cleanse(sql).split(';\n') if x]
-
-
-def pretty_sql(sql: str, lpad: str = '        ') -> str:
-    """
-    Convert a SQL statement(s) into readable format (nicely line-split, indented, and aligned)
-    suitable for printing and inspection.
-    """
-    sql = sqlparse.format(
-        sql,
-        reindent=True,
-        keyword_case='upper',
-    )
-    sql = sql.lstrip('\n').rstrip(' \n').replace('\n\n\n', '\n\n')
-    if lpad:
-        sql = textwrap.indent(sql, lpad)
-    return sql
+from .sql import pretty_sql
 
 
 class ColumnMapper(object):

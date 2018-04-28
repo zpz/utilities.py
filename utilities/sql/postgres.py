@@ -1,9 +1,24 @@
-import psycopg2 as pg2
+import logging
+from typing import List, Tuple
 
-from .sql import SQLReader, SQLWriter
+import psycopg2
+
+from .sql import SQLClient
+
+logger = logging.getLogger(__name__)
 
 
-class PostgresMixin:
+class Postgres(SQLClient):
+    def __init__(self, *, host, user, password, dbname, port=5432, **kwargs):
+        super().__init__(
+            conn_func=psycopg2.connect,
+            host=host,
+            user=user,
+            password=password,
+            dbname=dbname,
+            port=int(port),
+            **kwargs)
+
     @property
     def closed(self):
         return self._conn.closed
@@ -19,33 +34,18 @@ class PostgresMixin:
     def rollback(self):
         self._conn.rollback()
 
-    def execute(self, sql):
-        try:
-            return super().execute(sql)
-        except:
-            self.rollback()
-            raise
+    def commit(self):
+        '''Call this after `write` or `execute`.'''
+        self._conn.commit()
 
-
-class PostgresReader(SQLReader, PostgresMixin):
-    def __init__(self, *, dbname, host, port, user, password, **kwargs):
-        super().__init__(
-            conn_func=pg2.connect,
-            dbname=dbname,
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            **kwargs)
-
-    def get_databases(self):
+    def get_databases(self) -> List[str]:
         sql = "SELECT datname FROM pg_database WHERE datistemplate = false"
-        headers, rows = self.execute(sql).fetchall()
+        headers, rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
 
-    def get_tables(self):
+    def get_tables(self) -> List[str]:
         sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-        headers, rows = self.execute(sql).fetchall()
+        headers, rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
 
     def has_table(self, tb_name):
@@ -54,33 +54,24 @@ class PostgresReader(SQLReader, PostgresMixin):
 
         sql = "SELECT exists(SELECT relname FROM pg_class WHERE relname = '{}')".format(
             tb_name)
-        return self.read(sql)
+        return self.read(sql).fetchall()
 
-    def get_table_schema(self, tb_name):
+    def get_table_schema(
+            self, tb_name) -> Tuple[List[str], List[Tuple[str, str, str]]]:
+        '''
+        Returns: tuple with
+            ['column_name', 'data_type', 'is_nullable'],
+            [[column_name, data_type, is_nullable] for each field]
+        '''
         sql = """
         SELECT column_name, data_type, is_nullable
         FROM information_schema.columns
         WHERE table_name = '{tb_name}'
         """.format(tb_name=tb_name)
-        return self.read(sql)
+        return self.read(sql).fetchall()
 
-    def get_table_columns(self, tb_name):
+    def get_table_columns(self, tb_name) -> List[str]:
         sql = "SELECT column_name from information_schema.columns WHERE table_name = '{}'".format(
             tb_name)
-        headers, rows = self.execute(sql).fetchall()
+        headers, rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
-
-
-class PostgresWriter(SQLWriter):
-    def __init__(self, *, dbname, host, port, user, password, **kwargs):
-        super().__init__(
-            conn_func=pg2.connect,
-            dbname=dbname,
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            **kwargs)
-
-    def commit(self):
-        self._conn.commit()

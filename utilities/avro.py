@@ -8,8 +8,6 @@ import avro.datafile
 import avro.io
 import numpy
 
-# Dependencies: avro-python3
-
 
 class BinaryEncoder(avro.io.BinaryEncoder):
     def write_float(self, datum):
@@ -103,7 +101,7 @@ class DataFileReader(avro.datafile.DataFileReader):
 
         self._reader = reader
         self._raw_decoder = BinaryDecoder(reader)
-        self._datum_decoder = None # Maybe reset at every block.
+        self._datum_decoder = None  # Maybe reset at every block.
         self._datum_reader = DatumReader()
 
         # read the header: magic, meta, sync
@@ -116,14 +114,15 @@ class DataFileReader(avro.datafile.DataFileReader):
         else:
             self.codec = avro_codec_raw.decode('utf-8')
         if self.codec not in avro.datafile.VALID_CODECS:
-            raise avro.datafile.DataFileException('Unknown codec: %s.' % self.codec)
+            raise avro.datafile.DataFileException(
+                'Unknown codec: %s.' % self.codec)
 
         self._file_length = self._GetInputFileLength()
 
         # get ready to read
         self._block_count = 0
-        self.datum_reader.writer_schema = (
-            avro.schema.Parse(self.GetMeta(avro.datafile.SCHEMA_KEY).decode('utf-8')))
+        self.datum_reader.writer_schema = (avro.schema.Parse(
+            self.GetMeta(avro.datafile.SCHEMA_KEY).decode('utf-8')))
 
     def _read_block_header(self):
         # Replace `avro_io.BinaryDecoder` in original implementation
@@ -151,9 +150,10 @@ class DataFileReader(avro.datafile.DataFileReader):
             data = self.raw_decoder.read(length - 4)
             uncompressed = snappy.decompress(data)
             self._datum_decoder = BinaryDecoder(io.BytesIO(uncompressed))
-            self.raw_decoder.check_crc32(uncompressed);
+            self.raw_decoder.check_crc32(uncompressed)
         else:
-            raise avro.datafile.DataFileException("Unknown codec: %r" % self.codec)
+            raise avro.datafile.DataFileException(
+                "Unknown codec: %r" % self.codec)
 
 
 def _make_schema(x, name: str) -> Union[str, dict]:
@@ -167,10 +167,19 @@ def _make_schema(x, name: str) -> Union[str, dict]:
         return {'name': name, 'type': 'int', 'pytype': 'numpy'}
     if isinstance(x, numpy.int64):
         return {'name': name, 'type': 'long', 'pytype': 'numpy'}
-    if isinstance(x, (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16, numpy.uint32, numpy.uint64)):
-        return {'name': name, 'type': 'fixed', 'size': x.itemsize, 'pytype': 'numpy', 'logical_type': x.dtype.name}
+    if isinstance(x, (numpy.int8, numpy.int16, numpy.uint8, numpy.uint16,
+                      numpy.uint32, numpy.uint64)):
+        return {
+            'name': name,
+            'type': 'fixed',
+            'size': x.itemsize,
+            'pytype': 'numpy',
+            'logical_type': x.dtype.name
+        }
     if isinstance(x, numpy.ndarray):
-        assert len(x.shape) == 1, "Multi-dimensional Numpy arrays are not supported. Please convert to a 1-D Numpy array and store it dimensionality info as another datum"
+        assert len(
+            x.shape
+        ) == 1, "Multi-dimensional Numpy arrays are not supported. Please convert to a 1-D Numpy array and store it dimensionality info as another datum"
         z = _make_schema(x.dtype.type(), name + '_item')
         return {'name': name, 'type': 'array', 'items': z, 'pytype': 'numpy'}
 
@@ -190,7 +199,9 @@ def _make_schema(x, name: str) -> Union[str, dict]:
                 fields.append({'name': key, 'type': z})
         return {'name': name, 'type': 'record', 'fields': fields}
     if isinstance(x, list):
-        assert len(x) > 0, "empty list is not supported, because its type can not be inferred"
+        assert len(
+            x
+        ) > 0, "empty list is not supported, because its type can not be inferred"
         z0 = _make_schema(x[0], name + '_item')
         if len(x) > 1:
             for v in x[1:]:
@@ -207,12 +218,15 @@ def _make_schema(x, name: str) -> Union[str, dict]:
     raise Exception('unrecognized value of type "' + type(x).__name__ + '"')
 
 
-def make_schema(value, name: str, namespace: str) -> str:
+def make_schema(value, name: str,
+                namespace: str = 'mars.groundtruth.com') -> str:
     '''
     `value` is a `dict` whose members are either 'simple types' or 'compound types'.
+
     'simple types' include:
         int, float, str (python types)
         numpy.{int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64}  (numpy types)
+
     'compound types' include:
         dict: whose elements are simple or compound types
         list: whose elements are all the same simple or compound type
@@ -224,7 +238,9 @@ def make_schema(value, name: str, namespace: str) -> str:
 
 # Using `DataFileWriter` instead of the barebone `DatumWriter`,
 # the schema is included in the resultant byte array.
-def dump_bytes(value, name: str, namespace: str) -> bytes:
+def dump_bytes(value,
+               name: str = 'data',
+               namespace: str = 'mars.groundtruth.com') -> bytes:
     schema = make_schema(value, name, namespace)
     buffer = io.BytesIO()
     with DataFileWriter(buffer, schema) as writer:
