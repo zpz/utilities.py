@@ -32,10 +32,11 @@ class Postgres(SQLClient):
             self._connect()
 
     def rollback(self):
+        '''Call this after `write` but before `commit` to cancel the write.'''
         self._conn.rollback()
 
     def commit(self):
-        '''Call this after `write` or `execute`.'''
+        '''Call this after `write`.'''
         self._conn.commit()
 
     def get_databases(self) -> List[str]:
@@ -45,7 +46,7 @@ class Postgres(SQLClient):
 
     def get_tables(self) -> List[str]:
         sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
-        headers, rows = self.read(sql).fetchall()
+        rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
 
     def has_table(self, tb_name):
@@ -73,5 +74,5 @@ class Postgres(SQLClient):
     def get_table_columns(self, tb_name) -> List[str]:
         sql = "SELECT column_name from information_schema.columns WHERE table_name = '{}'".format(
             tb_name)
-        headers, rows = self.read(sql).fetchall()
+        rows = self.read(sql).fetchall()
         return [v[0] for v in rows]

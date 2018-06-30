@@ -1,6 +1,6 @@
 import logging
 import textwrap
-from typing import Union, Sequence, List, Tuple, Callable
+from typing import Union, Sequence, List, Tuple, Callable, Optional
 
 import sqlparse
 import pandas as pd
@@ -15,7 +15,7 @@ def cleanse_sql(x):
 def split_sql(sql: str) -> Sequence[str]:
     """
     Split a sequence of SQL statements into individual statements.
-
+    
     The input is a block of text formatted like ::
 
         CREATE TABLE ...
@@ -27,7 +27,7 @@ def split_sql(sql: str) -> Sequence[str]:
 
 
     ``;\\n`` is treated as the separator between SQL statements.
-
+    
     For each single SQL statement in the resultant list,
     trailing ';', line break, and spaces are removed;
     leading ';' and line break are removed;
@@ -62,6 +62,7 @@ class SQLClient:
                  *,
                  conn_func: Callable,
                  cursor_args: dict = None,
+                 cursor_arraysize: int=10000,
                  **conn_args) -> None:
         """
         Args:
@@ -79,15 +80,13 @@ class SQLClient:
         if cursor_args is None:
             cursor_args = {}
         self._cursor_args = cursor_args
-        self._cursor_arraysize = 100000
+        self._cursor_arraysize = cursor_arraysize
 
         self._connect()
 
-        self._user = conn_args['user']
-
     @property
-    def user(self) -> str:
-        return self._user
+    def user(self) -> Optional[str]:
+        return self._conn_args.get('user')
 
     def _create_cursor(self):
         try:
@@ -135,59 +134,102 @@ class SQLClient:
         self._execute(sql, **kwargs)
         return self
 
-    def __iter__(self):
+    def iterrows(self):
         """
         Iterator over rows in result after calling ``read``.
-
+        
         Before ``_execute`` is ever run, using the iterator is an error.
         """
         return self._cursor
 
-    def fetchall(self) -> Tuple[Sequence[str], Sequence[Sequence]]:
+    def iterbatches(self, size=None):
         """
-        This method is called after ``read`` to fetch the results.
-
-        Returns:
-            A tuple with ``headers`` and ``rows``, where
-            ``headers`` is a list of column names, and
-            ``rows`` is a tuple of tuples (rows).
+        This method is called after ``read`` to iter over results, one batch at a time.
         """
-        try:
-            rows = self._cursor.fetchall()
-            headers = [x[0] for x in self._cursor.description]
-            return headers, rows
-        except:
-            # TODO: log some error message?
-            return [], []
+        while True:
+            rows = self.fetchmany(size)
+            if rows:
+                yield rows
+            else:
+                break
 
-    def fetchall_pandas(self, simplify=True):
+    @property
+    def headers(self) -> List[str]:
+        """
+        Return column headers after calling ``read``.
+        
+        This can be used to augment the returns of `fetchone`, `fetchmany`, `fetchall`,
+        which return values only, i.e. they do not return column headers.
+        """
+        return [x[0] for x in self._cursor.description]
+
+    def fetchone(self) -> Union[Sequence[str], None]:
+        """
+        Fetch the next row of a query result set, returning a single sequence, 
+        or None when no more data is available.
+        
+        An Error (or subclass) exception is raised if the previous call to 
+        ``read`` did not produce any result set or no call to ``read`` was issued yet.
+        """
+        return self._cursor.fetchone()
+
+    def fetchone_pandas(self, simplify=False):
+        row = self.fetchone()
+        if not row:
+            return None
+        if simplify and len(row) == 1:
+            return row[0]
+
+        return pd.DataFrame.from_records([row], columns=self.headers)
+
+    def fetchmany(self, n=None) -> Sequence[Sequence[str]]:
+        """
+        Fetch the next set of rows of a query result, returning a sequence of sequences
+        (e.g. a list of tuples). 
+        An empty sequence is returned when no more rows are available.
+        
+        An Error (or subclass) exception is raised if the previous call to 
+        ``read`` did not produce any result set or no call to ``read`` was issued yet.
+        """
+        return self._cursor.fetchmany(n or self._cursor.arraysize)
+
+    def fetchmany_pandas(self, n=None, simplify=False):
+        rows = self.fetchmany(n)
+        if not rows:
+            return None
+        if simplify and len(rows) == 1 and len(rows[0]) == 1:
+            return rows[0][0]
+
+        return pd.DataFrame.from_records(rows, columns=self.headers)
+
+    def fetchall(self) -> Sequence[Sequence[str]]:
+        """
+        Fetch all (remaining) rows of a query result, returning them as a sequence of sequences
+        (e.g. a tuple of tuples). 
+        Note that the cursor's arraysize attribute can affect the performance of this operation.
+        
+        An Error (or subclass) exception is raised if the previous call to 
+        ``read`` did not produce any result set or no call to ``read`` was issued yet.
+        """
+        return self._cursor.fetchall()
+
+    def fetchall_pandas(self, simplify=False):
         """
         This method is called after ``read`` to fetch the results as a ``pandas.DataFrame``.
          
         `simplify`: if `True`, then if the resultant ``pandas.DataFrame``
             contains only one element, the single element is returned as a scalar
             (as opposed to a ``1 X 1 pandas.DataFrame``).
+
+        Warning: do not use this if the result contains a large number of rows.
         """
-        try:
-            names = [metadata[0] for metadata in self._cursor.description]
-            rows = []
-            while True:
-                r = self._cursor.fetchmany()
-                if r:
-                    rows.extend(r)
-                else:
-                    break
-            nrows = len(rows)
-            if nrows > self._cursor.arraysize:
-                logger.debug('downloaded %d rows', nrows)
-            v = pd.DataFrame.from_records(rows, columns=names)
-            if simplify:
-                if v.size == 1:
-                    v = v.iloc[0, 0]
-            return v
-        except:
-            # TODO: log some error message?
-            return pd.DataFrame()
+        rows = self.fetchall()
+        if not rows:
+            return None
+        if simplify and len(rows) == 1 and len(rows[0]) == 1:
+            return rows[0][0]
+
+        return pd.DataFrame.from_records(rows, columns=self.headers)
 
     def write(self, sql: Union[str, List[str]], **kwargs):
         if isinstance(sql, str):
