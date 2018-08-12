@@ -12,11 +12,10 @@ import urllib.request
 
 logger = logging.getLogger(__name__)
 
-SLACK_NOTIFY_CHANNELS = ['my-channel-name']
-# Example list of supported notificaion channels.
+SLACK_NOTIFY_CHANNELS = ['alerts']
 
 
-def notify_slack(slack_channel: str, text: str) -> None:
+def notify_slack(slack_channel: str, status: str, msg: str) -> None:
     if slack_channel not in SLACK_NOTIFY_CHANNELS:
         logger.error(
             'the requested Slack notification channel, %s, is not supported',
@@ -26,7 +25,7 @@ def notify_slack(slack_channel: str, text: str) -> None:
     slack_channel = slack_channel.replace('-', '').replace('_', '').upper()
     url = os.environ['SLACK_' + slack_channel + '_WEBHOOK_URL']
     json_data = json.dumps({
-        'text': '--- new alert ---\n' + text
+        'text': '--- {} ---\n{}'.format(status, msg)
     }).encode('ascii')
     req = urllib.request.Request(
         url, data=json_data, headers={'Content-type': 'application/json'})
@@ -44,7 +43,8 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
     if not ff.exists():
         return True
 
-    old_status, old_date, old_time, *_ = open(ff).read()[:50].split()
+    old_status, old_dt, *_ = open(ff).read()[:50].split('\n')
+    old_date, old_time, *_ = old_dt.split()
 
     if old_status != status:
         return True
@@ -66,75 +66,83 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
 
 
 def notify(exception_classes: Exception = None,
-           slack_channel: str = 'my-channel-name',
+           slack_channel: str = 'alerts',
            silent_seconds: Union[float, int] = 1,
            ok_silent_hours: Union[float, int] = 0.99):
     '''
     A decorator for writing a status file for a function for notification purposes.
+   
     In addition, `slack_channel`, `silent_seconds`, `ok_silent_hours`, in combination with
     the current and previous statuses, determine whether to send alert to Slack.
     See `should_send_alert` for details.
-
+   
     Args:
         exception_classes: exception class object, or tuple or list of multiple classes,
             to be captured; if `None`, all exceptions will be captured.
+        
         slack_channel: if value is a supported channel, send alert to Slack if other conditions
-            are met. Currently recognized channels are listed in `SLACK_NOTIFY_CHANNELS`.
-            To suppress Slack notification, pass in any other value, like '' or `None`.
+            are met. Currently only 'alerts' is supported. To suppress Slack notification,
+            pass in any other value, like '' or `None`.
+        
         silent_seconds: if new status is identical to the previous one and the previous
             status was written within the last `silent_seconds` seconds, do not send alert.
+        
         ok_silent_hours: if new and previous statuses are both 'OK' and the previous status
             was written within the last `ok_silent_hours` hours, do not send alert.
-
+    
     The status file is located in the directory specified by the environ variable `NOTIFYDIR`.
     The file name is constructed by the package/module of the decorated function as well as the function's name.
-    For example, if function `testit` in package/module `mypackage.models.regression.linear` is being decorated,
-    then the status file is `mypackage.models.regression.linear.testit` in the notify directory.
-
+    For example, if function `testit` in package/module `models.regression.linear` is being decorated,
+    then the status file is `models.regression.linear.testit` in the notify directory.
+    
     If the decorated function is in a launching script (hence its `module` is named `__main__`),
     then the full path of the script is used to construct the status file's name.
     For example, if function `testthat` in script `/home/docker-user/work/scripts/do_this.py` is being decorated,
     then the status file is `home.docker-user.work.scripts.do_this.py.testthat` in the notify directory.
-
+    
     This decorator writes 'OK' in the status file if the decorated function returns successfully.
-    If the decorated function raises any exception, `CRITICAL` is written along with some additional info.
-
+    If the decorated function raises any exception, `ERROR` is written along with some additional info.
+    
     This decorator does not write logs. If you wish to log the exception, you must handle that separately.
     If you handle the exception within the function, make sure you re-`raise` the exception so that this decorator
     can capture it (if you want it to).
-
+    
     Usually you only need to decorate the top-level function in a pipeline's launching script, like this:
-
+        
         # launcher.py
+        
         from utilities.notify import notify
-
+        
         @notify()
         def main():
             # do things that could raise exeptions
             # ...
-
+        
         if __name__ == '__main__':
             main()
-
+    
     You want to use this decorator at more refined places only when you want to handle a certain exception
     and then continue the program, but also want to notify about that exception, like this:
-
+    
         # module `abc.py` in package `proj1.component2`
+    
         from utilities.notify import notify
-
+    
         class MySpecialError(Exception):
             pass
-
+    
         @notify(MySpecialError)
+    
         def func1():
             # do things that could raise MySpecialError
             # ...
             # result = ...
             if result is None:
                 raise MySpecialError('omg!')
+           
             #...
             #...
-            
+    
         def func2():
             try:
                 func1()
@@ -156,10 +164,9 @@ def notify(exception_classes: Exception = None,
     def decorator(func):
         module = func.__module__
         if module == '__main__':
-            module = str(
-                Path.cwd() / inspect.getsourcefile(func)).strip('/').replace(
-                    '/', '.')
-        fname = module + '.' + func.__name__
+            module = str(Path.cwd() / inspect.getsourcefile(func))
+        decloc = module + ' :: ' + func.__name__
+        fname = module.strip('/').replace('/', '.') + '.' + func.__name__
         fdir = os.environ['NOTIFYDIR']
         Path(fdir).mkdir(parents=True, exist_ok=True)
 
@@ -170,28 +177,30 @@ def notify(exception_classes: Exception = None,
             dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
             try:
                 z = func(*args, **kwargs)
-                msg = 'OK  {} UTC at {} (in {})\n'.format(dt, fname, fdir)
-                if should_send_alert('OK', notifile, silent_seconds,
+                status = 'OK'
+                msg = '{} UTC\n{}\n'.format(dt, decloc)
+                if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
-                    notify_slack(slack_channel, msg)
-                open(notifile, 'w').write(msg)
+                    notify_slack(slack_channel, status, msg)
+                open(notifile, 'w').write(status + '\n' + msg)
                 return z
             except exception_classes as e:
-                msg = 'CRITICAL  {} UTC at {} (in {})\n\n{}\n'.format(
-                    dt, fname, fdir, format_exc())
-                if should_send_alert('CRITICAL', notifile, silent_seconds,
+                status = 'ERROR'
+                msg = '{} UTC\n{}\n\n{}\n'.format(dt, decloc, format_exc())
+                if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
-                    notify_slack(slack_channel, msg)
-                open(notifile, 'w').write(msg)
+                    notify_slack(slack_channel, status, msg)
+                open(notifile, 'w').write(status + '\n' + msg)
                 raise
             except:
-                msg = 'OK  {} UTC at {} (in {})\n'.format(dt, fname, fdir)
-                if should_send_alert('OK', notifile, silent_seconds,
+                status = 'OK'
+                msg = '{} UTC\n{}\n'.format(dt, decloc)
+                if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
-                    notify_slack(slack_channel, msg)
-                open(notifile, 'w').write(msg)
+                    notify_slack(slack_channel, status, msg)
+                open(notifile, 'w').write(status + '\n' + msg)
                 raise
 
         return decorated
 
-return decorator
+    return decorator
