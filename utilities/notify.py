@@ -179,27 +179,20 @@ def notify(exception_classes: Exception = None,
                 z = func(*args, **kwargs)
                 status = 'OK'
                 msg = '{} UTC\n{}\n'.format(dt, decloc)
-                if should_send_alert(status, notifile, silent_seconds,
-                                     ok_silent_hours):
-                    notify_slack(slack_channel, status, msg)
-                open(notifile, 'w').write(status + '\n' + msg)
                 return z
             except exception_classes as e:
                 status = 'ERROR'
                 msg = '{} UTC\n{}\n\n{}\n'.format(dt, decloc, format_exc())
-                if should_send_alert(status, notifile, silent_seconds,
-                                     ok_silent_hours):
-                    notify_slack(slack_channel, status, msg)
-                open(notifile, 'w').write(status + '\n' + msg)
                 raise
             except:
                 status = 'OK'
                 msg = '{} UTC\n{}\n'.format(dt, decloc)
+                raise
+            finally:
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
                     notify_slack(slack_channel, status, msg)
                 open(notifile, 'w').write(status + '\n' + msg)
-                raise
 
         return decorated
 
