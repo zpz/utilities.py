@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 import threading
 from traceback import format_exc
-from typing import Union
+from typing import Union, Optional
 import urllib.request
 
 logger = logging.getLogger(__name__)
@@ -67,8 +67,9 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
 
 def notify(exception_classes: Exception = None,
            slack_channel: str = 'alerts',
-           silent_seconds: Union[float, int] = 1,
-           ok_silent_hours: Union[float, int] = 0.99):
+           debug: bool = False,
+           silent_seconds: Union[float, int] = None,
+           ok_silent_hours: Union[float, int] = None):
     '''
     A decorator for writing a status file for a function for notification purposes.
    
@@ -89,6 +90,9 @@ def notify(exception_classes: Exception = None,
         
         ok_silent_hours: if new and previous statuses are both 'OK' and the previous status
             was written within the last `ok_silent_hours` hours, do not send alert.
+
+        debug: if either `silent_seconds` or `ok_silent_hours` is `None`, their values are
+            determined according whether `debug` is `True`.
     
     The status file is located in the directory specified by the environ variable `NOTIFYDIR`.
     The file name is constructed by the package/module of the decorated function as well as the function's name.
@@ -160,6 +164,14 @@ def notify(exception_classes: Exception = None,
             exception_classes = tuple(exception_classes)
         assert isinstance(exception_classes, tuple)
         assert all(issubclass(v, Exception) for v in exception_classes)
+
+    if silent_seconds is None:
+        silent_seconds = 1.0
+    if ok_silent_hours is None:
+        if debug:
+            ok_silent_hours = 1./60.    # 1 minute
+        else:
+            ok_silent_hours = 23.90     # 1 day
 
     def decorator(func):
         module = func.__module__
