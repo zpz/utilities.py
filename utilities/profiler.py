@@ -166,11 +166,13 @@ class Timer:
         self._t_start = time.perf_counter()
         self._t_stop = None
         self._running = True
+        return self
 
     def stop(self):
         if self._running:
             self._t_stop = time.perf_counter()
             self._running = False
+        return self
 
     @property
     def seconds(self):

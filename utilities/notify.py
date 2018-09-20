@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import functools
 import inspect
 import json
@@ -10,9 +10,12 @@ from traceback import format_exc
 from typing import Union, Optional
 import urllib.request
 
+from .profiler import Timer
+
+
 logger = logging.getLogger(__name__)
 
-SLACK_NOTIFY_CHANNELS = ['alerts']
+SLACK_NOTIFY_CHANNELS = ['alerts', 'info']
 
 
 def notify_slack(slack_channel: str, status: str, msg: str) -> None:
@@ -66,24 +69,19 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
 
 
 def notify(exception_classes: Exception = None,
-           slack_channel: str = 'alerts',
            debug: bool = False,
            silent_seconds: Union[float, int] = None,
            ok_silent_hours: Union[float, int] = None):
     '''
     A decorator for writing a status file for a function for notification purposes.
    
-    In addition, `slack_channel`, `silent_seconds`, `ok_silent_hours`, in combination with
+    `silent_seconds` and `ok_silent_hours`, in combination with
     the current and previous statuses, determine whether to send alert to Slack.
     See `should_send_alert` for details.
    
     Args:
         exception_classes: exception class object, or tuple or list of multiple classes,
             to be captured; if `None`, all exceptions will be captured.
-        
-        slack_channel: if value is a supported channel, send alert to Slack if other conditions
-            are met. Currently only 'alerts' is supported. To suppress Slack notification,
-            pass in any other value, like '' or `None`.
         
         silent_seconds: if new status is identical to the previous one and the previous
             status was written within the last `silent_seconds` seconds, do not send alert.
@@ -186,24 +184,28 @@ def notify(exception_classes: Exception = None,
 
         @functools.wraps(func)
         def decorated(*args, **kwargs):
-            dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
+            mytimer = Timer().start()
             try:
                 z = func(*args, **kwargs)
+                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
                 status = 'OK'
                 msg = '{} UTC\n{}\n'.format(dt, decloc)
                 return z
             except exception_classes as e:
+                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
                 status = 'ERROR'
                 msg = '{} UTC\n{}\n\n{}\n'.format(dt, decloc, format_exc())
                 raise
             except:
+                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
                 status = 'OK'
                 msg = '{} UTC\n{}\n'.format(dt, decloc)
                 raise
             finally:
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
-                    notify_slack(slack_channel, status, msg)
+                    notify_slack(slack_channel, status,
+                        msg + 'Time spent: {}\n'.format(timedelta(seconds=mytimer.stop().seconds)))
                 open(notifile, 'w').write(status + '\n' + msg)
 
         return decorated
