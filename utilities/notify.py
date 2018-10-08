@@ -10,12 +10,16 @@ from traceback import format_exc
 from typing import Union, Optional
 import urllib.request
 
-from .profiler import Timer
+import arrow
 
+from .profiler import Timer
 
 logger = logging.getLogger(__name__)
 
 SLACK_NOTIFY_CHANNELS = ['alerts', 'info']
+
+# Reference:
+# search for 'incoming webhooks for slack'
 
 
 def notify_slack(slack_channel: str, status: str, msg: str) -> None:
@@ -27,8 +31,12 @@ def notify_slack(slack_channel: str, status: str, msg: str) -> None:
 
     slack_channel = slack_channel.replace('-', '').replace('_', '').upper()
     url = os.environ['SLACK_' + slack_channel + '_WEBHOOK_URL']
+    dt = arrow.utcnow()
+    dt1 = dt.format('YYYY-MM-DD HH:mm:ss') + ' UTC'
+    dt2 = dt.to('US/Pacific').format('YYYY-MM-DD HH:mm:ss') + ' Pacific'
+
     json_data = json.dumps({
-        'text': '--- {} ---\n{}'.format(status, msg)
+        'text': '--- {} ---\n{}\n{}\n{}'.format(status, dt1, dt2, msg)
     }).encode('ascii')
     req = urllib.request.Request(
         url, data=json_data, headers={'Content-type': 'application/json'})
@@ -41,110 +49,120 @@ def notify_slack(slack_channel: str, status: str, msg: str) -> None:
     # TODO: is this the right way to send emails async?
 
 
+def log_notify(filename, status):
+    dt = arrow.utcnow().format('YYYY-MM-DD HH:mm:ss.SSSSSS') + ' UTC'
+    open(filename, 'w').write(status + '\n' + dt)
+
+
 def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
                       ok_silent_hours: Union[float, int]) -> bool:
     if not ff.exists():
         return True
 
-    old_status, old_dt, *_ = open(ff).read()[:50].split('\n')
-    old_date, old_time, *_ = old_dt.split()
+    try:
+        old_status, old_dt, *_ = open(ff).read().split('\n')
+        old_date, old_time, *_ = old_dt.split()
 
-    if old_status != status:
-        return True
+        if old_status != status:
+            return True
 
-    t0 = datetime.strptime(old_date + ' ' + old_time, '%Y-%m-%d %H:%M:%S:%f')
-    t1 = datetime.utcnow()
-    lapse = (t1 - t0).total_seconds()
+        t0 = arrow.get(old_date + ' ' + old_time)
+        t1 = datetime.utcnow()
+        lapse = (t1 - t0).total_seconds()
 
-    if lapse < float(silent_seconds):
+        if lapse < float(silent_seconds):
+            return False
+
+        if status != 'OK':
+            return True
+
+        if lapse > float(ok_silent_hours) * 3600.:
+            return True
+
         return False
-
-    if status != 'OK':
+    except Exception as e:
+        logger.error(str(e) + '\n' + format_exc())
+        notify_slack('alerts', 'ERROR in notify code', format_exc())
         return True
-
-    if lapse > float(ok_silent_hours) * 3600.:
-        return True
-
-    return False
 
 
 def notify(exception_classes: Exception = None,
            debug: bool = False,
-           silent_seconds: Union[float, int] = None,
-           ok_silent_hours: Union[float, int] = None):
+           with_args: bool = True,
+           silent_seconds: Optional[Union[float, int]] = None,
+           ok_silent_hours: Optional[Union[float, int]] = None):
     '''
     A decorator for writing a status file for a function for notification purposes.
-   
-    `silent_seconds` and `ok_silent_hours`, in combination with
+
+    In addition, `slack_channel`, `silent_seconds`, `ok_silent_hours`, in combination with
     the current and previous statuses, determine whether to send alert to Slack.
     See `should_send_alert` for details.
-   
+
     Args:
         exception_classes: exception class object, or tuple or list of multiple classes,
             to be captured; if `None`, all exceptions will be captured.
-        
+
         silent_seconds: if new status is identical to the previous one and the previous
             status was written within the last `silent_seconds` seconds, do not send alert.
-        
+
         ok_silent_hours: if new and previous statuses are both 'OK' and the previous status
             was written within the last `ok_silent_hours` hours, do not send alert.
 
         debug: if either `silent_seconds` or `ok_silent_hours` is `None`, their values are
             determined according whether `debug` is `True`.
-    
+
     The status file is located in the directory specified by the environ variable `NOTIFYDIR`.
     The file name is constructed by the package/module of the decorated function as well as the function's name.
     For example, if function `testit` in package/module `models.regression.linear` is being decorated,
     then the status file is `models.regression.linear.testit` in the notify directory.
-    
+
     If the decorated function is in a launching script (hence its `module` is named `__main__`),
     then the full path of the script is used to construct the status file's name.
     For example, if function `testthat` in script `/home/docker-user/work/scripts/do_this.py` is being decorated,
     then the status file is `home.docker-user.work.scripts.do_this.py.testthat` in the notify directory.
-    
+
     This decorator writes 'OK' in the status file if the decorated function returns successfully.
-    If the decorated function raises any exception, `ERROR` is written along with some additional info.
-    
+    If the decorated function raises any exception, `CRITICAL` is written along with some additional info.
+
     This decorator does not write logs. If you wish to log the exception, you must handle that separately.
     If you handle the exception within the function, make sure you re-`raise` the exception so that this decorator
     can capture it (if you want it to).
-    
+
     Usually you only need to decorate the top-level function in a pipeline's launching script, like this:
-        
+
         # launcher.py
-        
+
         from utilities.notify import notify
-        
+
         @notify()
         def main():
             # do things that could raise exeptions
             # ...
-        
+
         if __name__ == '__main__':
             main()
-    
+
     You want to use this decorator at more refined places only when you want to handle a certain exception
     and then continue the program, but also want to notify about that exception, like this:
-    
+
         # module `abc.py` in package `proj1.component2`
-    
+
         from utilities.notify import notify
-    
+
         class MySpecialError(Exception):
             pass
-    
+
         @notify(MySpecialError)
-    
         def func1():
             # do things that could raise MySpecialError
             # ...
             # result = ...
             if result is None:
                 raise MySpecialError('omg!')
-           
+
             #...
             #...
-    
+
         def func2():
             try:
                 func1()
@@ -165,11 +183,12 @@ def notify(exception_classes: Exception = None,
 
     if silent_seconds is None:
         silent_seconds = 1.0
+
     if ok_silent_hours is None:
         if debug:
-            ok_silent_hours = 1./60.    # 1 minute
+            ok_silent_hours = 1. / 60.  # 1 minute
         else:
-            ok_silent_hours = 23.90     # 1 day
+            ok_silent_hours = 23.90  # 1 day
 
     def decorator(func):
         module = func.__module__
@@ -187,26 +206,37 @@ def notify(exception_classes: Exception = None,
             mytimer = Timer().start()
             try:
                 z = func(*args, **kwargs)
-                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
                 status = 'OK'
-                msg = '{} UTC\n{}\n'.format(dt, decloc)
-                return z
-            except exception_classes as e:
-                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
-                status = 'ERROR'
-                msg = '{} UTC\n{}\n\n{}\n'.format(dt, decloc, format_exc())
-                raise
-            except:
-                dt = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S:%f')
-                status = 'OK'
-                msg = '{} UTC\n{}\n'.format(dt, decloc)
-                raise
-            finally:
+                msg = '{}\nThe function took {} to finish.\n'.format(
+                    decloc, timedelta(seconds=mytimer.stop().seconds))
+                if with_args:
+                    msg += f'args: {args}\nkwargs: {kwargs}\n'
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours):
-                    notify_slack(slack_channel, status,
-                        msg + 'Time spent: {}\n'.format(timedelta(seconds=mytimer.stop().seconds)))
-                open(notifile, 'w').write(status + '\n' + msg)
+                    notify_slack('info', status, msg)
+                log_notify(notifile, status)
+                return z
+            except exception_classes as e:
+                status = 'ERROR'
+                msg = '{}\n\n{}\n'.format(decloc, format_exc())
+                if with_args:
+                    msg += f'\nargs: {args}\nkwargs: {kwargs}\n'
+                if should_send_alert(status, notifile, silent_seconds,
+                                     ok_silent_hours):
+                    notify_slack('alerts', status, msg)
+                log_notify(notifile, status)
+                raise
+            except:
+                status = 'OK'
+                msg = '{}\nThe function took {} to finish.\n'.format(
+                        decloc, timedelta(seconds=mytimer.stop().seconds))
+                if with_args:
+                    msg += f'args: {args}\nkwargs: {kwargs}\n'
+                if should_send_alert(status, notifile, silent_seconds,
+                                     ok_silent_hours):
+                    notify_slack('info', status, msg)
+                log_notify(notifile, status)
+                raise
 
         return decorated
 

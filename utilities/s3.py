@@ -108,6 +108,38 @@ class Bucket:
     def download_tree(self, s3_path: str, local_path: str = None) -> None:
         raise NotImplementedError
 
+    def ls(self, key, recursive: bool=False):
+        # List object names directly or recursively named like `key*`.
+        # If `key` is `abc/def/`,
+        # then `abc/def/123/45` will return as `123/45`
+        #
+        # If `key` is `abc/def`,
+        # then `abc/defgh/45` will return as `defgh/45`;
+        # `abc/def/gh` will return as `/gh`.
+        #
+        # So if you know `key` is a `directory`, then it's a good idea to
+        # include the trailing `/` in `key`.
+
+        z = self._bucket.objects.filter(Prefix=key)
+
+        if key.endswith('/'):
+            key_len = len(key)
+        else:
+            key_len = key.rfind('/') + 1
+
+        if recursive:
+            return (v.key[key_len :] for v in z)  
+            # this is a generator, b/c there can be many, many elements
+        else:
+            keys = set()
+            for v in z:
+                vv = v.key[key_len :]
+                idx = vv.find('/')
+                if idx >= 0:
+                    vv = vv[: idx]
+                keys.add(vv)
+            return sorted(list(keys))
+
     def has(self, key: str) -> bool:
         if not hasattr(self, '_s3'):
             self._s3 = _get_client()
