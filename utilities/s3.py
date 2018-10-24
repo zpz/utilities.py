@@ -150,5 +150,24 @@ class Bucket:
             self._s3 = _get_client()
         _delete_key(self._s3, self._bucket.name, key)
 
-    def delete_tree(self, s3_path: str) -> None:
-        raise NotImplementedError
+    def delete_tree(self, s3_path: str) -> int:
+        '''
+        Return the number of objects deleted.
+        After this operation, the 'folder' `s3_path` is also gone.
+        
+        TODO: this is not the fastest way to do it.
+        '''
+        assert s3_path.endswith('/')
+        n = 0
+        for k in self.ls(s3_path, recursive=True):
+            kk = s3_path + k
+            self.delete(kk)
+            n += 1
+        return n
+
+
+def reduce_boto_logging():
+    import boto3.s3.transfer
+    for name in logging.Logger.manager.loggerDict.keys():
+        if name.startswith('boto') or name.startswith('urllib3') or name.startswith('s3transfer'):
+            logging.getLogger(name).setLevel(logging.ERROR)

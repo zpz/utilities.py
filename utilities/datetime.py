@@ -48,7 +48,6 @@ def tzdate_str(tzname):
 
 
 
-
 def shift_day(day: str, ndays: int) -> str:
     '''
     Given a date like '2018-09-23', shift it by (positive or negative) `ndays` days, e.g.

@@ -17,12 +17,13 @@ Library modules should have ::
 and then just use ``logger`` to write logs without concern about formatting,
 destination of the log message, etc.
 """
-
+from datetime import datetime
 import logging
 from logging import Formatter
-import os
 import time
 from typing import Union
+
+import pytz
 
 #import os
 # raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')
@@ -42,24 +43,27 @@ logging.logProcesses = 0
 
 def _make_config(
         *,
-        level: Union[str, int] = None,
-        format:
-        str = '[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
-        use_utc: bool = True,
-        datefmt: str = '%Y-%m-%d %H:%M:%S',
+        level: Union[str, int]='info',
+        format: str='[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
+        timezone: str='US/Pacific',
+        datefmt: str='%Y-%m-%d %H:%M:%S %Z',
         **kwargs) -> dict:
-    if level is None:
-        level = os.environ.get('LOGLEVEL', 'info')
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING,
                      logging.ERROR, logging.CRITICAL):
         level = getattr(logging, level.upper())
 
-    if use_utc:
+    if timezone.lower() == 'UTC':
         Formatter.converter = time.gmtime
-        datefmt += ' UTC'
-    else:
+    elif timezone.lower() == 'local':
         Formatter.converter = time.localtime
+    else:
+        def custom_time(*args):
+            utc_dt = pytz.utc.localize(datetime.utcnow())
+            my_tz = pytz.timezone(timezone)
+            converted = utc_dt.astimezone(my_tz)
+            return converted.timetuple()
+        Formatter.converter = custom_time
 
     return dict(format=format, datefmt=datefmt, level=level, **kwargs)
 

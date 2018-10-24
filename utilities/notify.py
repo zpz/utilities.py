@@ -32,11 +32,11 @@ def notify_slack(slack_channel: str, status: str, msg: str) -> None:
     slack_channel = slack_channel.replace('-', '').replace('_', '').upper()
     url = os.environ['SLACK_' + slack_channel + '_WEBHOOK_URL']
     dt = arrow.utcnow()
-    dt1 = dt.format('YYYY-MM-DD HH:mm:ss') + ' UTC'
+    # dt1 = dt.format('YYYY-MM-DD HH:mm:ss') + ' UTC'
     dt2 = dt.to('US/Pacific').format('YYYY-MM-DD HH:mm:ss') + ' Pacific'
 
     json_data = json.dumps({
-        'text': '--- {} ---\n{}\n{}\n{}'.format(status, dt1, dt2, msg)
+        'text': '--- {} ---\n{}\n{}'.format(status, dt2, msg)
     }).encode('ascii')
     req = urllib.request.Request(
         url, data=json_data, headers={'Content-type': 'application/json'})
@@ -49,41 +49,46 @@ def notify_slack(slack_channel: str, status: str, msg: str) -> None:
     # TODO: is this the right way to send emails async?
 
 
-def log_notify(filename, status):
+def log_notify(filename, status, info):
     dt = arrow.utcnow().format('YYYY-MM-DD HH:mm:ss.SSSSSS') + ' UTC'
-    open(filename, 'w').write(status + '\n' + dt)
+    info = info.replace('\n', ' ')
+    open(filename, 'w').write(status + '\n' + dt + '\n' + info)
 
 
 def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
-                      ok_silent_hours: Union[float, int]) -> bool:
+                      ok_silent_hours: Union[float, int], info: str) -> bool:
     if not ff.exists():
         return True
 
+    info = info.replace('\n', ' ')
+
     try:
-        old_status, old_dt, *_ = open(ff).read().split('\n')
+        old_status, old_dt, old_info = open(ff).read().split('\n')
         old_date, old_time, *_ = old_dt.split()
-
-        if old_status != status:
-            return True
-
-        t0 = arrow.get(old_date + ' ' + old_time)
-        t1 = datetime.utcnow()
-        lapse = (t1 - t0).total_seconds()
-
-        if lapse < float(silent_seconds):
-            return False
-
-        if status != 'OK':
-            return True
-
-        if lapse > float(ok_silent_hours) * 3600.:
-            return True
-
-        return False
     except Exception as e:
-        logger.error(str(e) + '\n' + format_exc())
-        notify_slack('alerts', 'ERROR in notify code', format_exc())
         return True
+
+    if old_status != status:
+        return True
+
+    if old_info != info:
+        return True
+
+    t0 = arrow.get(old_date + ' ' + old_time)
+    t1 = arrow.utcnow()
+    lapse = (t1 - t0).total_seconds()
+
+    if lapse < float(silent_seconds):
+        return False
+
+    if status != 'OK':
+        return True
+
+    if lapse > float(ok_silent_hours) * 3600.:
+        return True
+
+    return False
+
 
 
 def notify(exception_classes: Exception = None,
@@ -113,23 +118,23 @@ def notify(exception_classes: Exception = None,
 
     The status file is located in the directory specified by the environ variable `NOTIFYDIR`.
     The file name is constructed by the package/module of the decorated function as well as the function's name.
-    For example, if function `testit` in package/module `models.regression.linear` is being decorated,
-    then the status file is `models.regression.linear.testit` in the notify directory.
-
+    For example, if function `testit` in package/module `mars.models.regression.linear` is being decorated,
+    then the status file is `mars.models.regression.linear.testit` in the notify directory.
+    
     If the decorated function is in a launching script (hence its `module` is named `__main__`),
     then the full path of the script is used to construct the status file's name.
     For example, if function `testthat` in script `/home/docker-user/work/scripts/do_this.py` is being decorated,
     then the status file is `home.docker-user.work.scripts.do_this.py.testthat` in the notify directory.
-
+    
     This decorator writes 'OK' in the status file if the decorated function returns successfully.
     If the decorated function raises any exception, `CRITICAL` is written along with some additional info.
-
+    
     This decorator does not write logs. If you wish to log the exception, you must handle that separately.
     If you handle the exception within the function, make sure you re-`raise` the exception so that this decorator
     can capture it (if you want it to).
-
+    
     Usually you only need to decorate the top-level function in a pipeline's launching script, like this:
-
+        
         # launcher.py
 
         from utilities.notify import notify
@@ -159,7 +164,7 @@ def notify(exception_classes: Exception = None,
             # result = ...
             if result is None:
                 raise MySpecialError('omg!')
-
+                
             #...
             #...
 
@@ -204,38 +209,37 @@ def notify(exception_classes: Exception = None,
         @functools.wraps(func)
         def decorated(*args, **kwargs):
             mytimer = Timer().start()
+            if with_args:
+                args_msg = f'args: {args}\nkwargs: {kwargs}\n'
+            else:
+                args_msg = ''
+            status_msg = decloc + args_msg
             try:
                 z = func(*args, **kwargs)
                 status = 'OK'
-                msg = '{}\nThe function took {} to finish.\n'.format(
-                    decloc, timedelta(seconds=mytimer.stop().seconds))
-                if with_args:
-                    msg += f'args: {args}\nkwargs: {kwargs}\n'
+                msg = '{}\nThe function took {} to finish.\n{}'.format(
+                    decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
-                                     ok_silent_hours):
-                    notify_slack('info', status, msg)
-                log_notify(notifile, status)
+                                     ok_silent_hours, status_msg):
+                    notify_slack('mars-info', status, msg)
+                log_notify(notifile, status, status_msg)
                 return z
             except exception_classes as e:
                 status = 'ERROR'
-                msg = '{}\n\n{}\n'.format(decloc, format_exc())
-                if with_args:
-                    msg += f'\nargs: {args}\nkwargs: {kwargs}\n'
+                msg = '{}\n\n{}\n{}'.format(decloc, format_exc(), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
-                                     ok_silent_hours):
-                    notify_slack('alerts', status, msg)
-                log_notify(notifile, status)
+                                     ok_silent_hours, status_msg):
+                    notify_slack('mars-alerts', status, msg)
+                log_notify(notifile, status, status_msg)
                 raise
             except:
                 status = 'OK'
-                msg = '{}\nThe function took {} to finish.\n'.format(
-                        decloc, timedelta(seconds=mytimer.stop().seconds))
-                if with_args:
-                    msg += f'args: {args}\nkwargs: {kwargs}\n'
+                msg = '{}\nThe function took {} to finish.\n{}'.format(
+                        decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
-                                     ok_silent_hours):
-                    notify_slack('info', status, msg)
-                log_notify(notifile, status)
+                                     ok_silent_hours, status_msg):
+                    notify_slack('mars-info', status, msg)
+                log_notify(notifile, status, status_msg)
                 raise
 
         return decorated
