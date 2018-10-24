@@ -1,7 +1,20 @@
 import arrow
 import pytest
 
-from zpz.datetime import DateRange
+from zpz.datetime import DateRange, shift_day, shift_hour
+
+
+
+def test_shift_day():
+    assert shift_day('2018-09-23', 0) == '2018-09-23'
+    assert shift_day('2018-09-23', -1) == '2018-09-22'
+    assert shift_day('2018-09-03', -5) == '2018-08-29'
+    assert shift_day('2018-09-28', 6) == '2018-10-04'
+
+
+def test_shift_hour():
+    assert shift_hour('2018-09-20', '08', 12) == ('2018-09-20', '20')
+    assert shift_hour('2018-09-20', '08', -24) == ('2018-09-19', '08')
 
 
 def test_daterange():
