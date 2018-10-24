@@ -1,7 +1,4 @@
-from utilities.testing import config_test
-from utilities.email import Mailer
-
-config_test()
+from zpz.email import Mailer
 
 send_from = 'abc@my.com'
 send_to = 'def@gmail.com'

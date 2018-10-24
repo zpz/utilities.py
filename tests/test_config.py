@@ -1,4 +1,4 @@
-from utilities.config import read_ini_config
+from zpz.config import read_ini_config
 
 def test_get():
     conf = read_ini_config('test.conf')

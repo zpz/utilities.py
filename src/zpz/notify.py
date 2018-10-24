@@ -137,7 +137,7 @@ def notify(exception_classes: Exception = None,
         
         # launcher.py
 
-        from utilities.notify import notify
+        from zpz.notify import notify
 
         @notify()
         def main():
@@ -152,7 +152,7 @@ def notify(exception_classes: Exception = None,
 
         # module `abc.py` in package `proj1.component2`
 
-        from utilities.notify import notify
+        from zpz.notify import notify
 
         class MySpecialError(Exception):
             pass

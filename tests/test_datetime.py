@@ -1,7 +1,7 @@
 import arrow
 import pytest
 
-from utilities.datetime import DateRange
+from zpz.datetime import DateRange
 
 
 def test_daterange():

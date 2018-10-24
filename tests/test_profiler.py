@@ -1,6 +1,6 @@
 import math
 
-from utilities import profiler
+from zpz import profiler
 
 
 @profiler.profiled()
