@@ -118,8 +118,8 @@ def notify(exception_classes: Exception = None,
 
     The status file is located in the directory specified by the environ variable `NOTIFYDIR`.
     The file name is constructed by the package/module of the decorated function as well as the function's name.
-    For example, if function `testit` in package/module `mars.models.regression.linear` is being decorated,
-    then the status file is `mars.models.regression.linear.testit` in the notify directory.
+    For example, if function `testit` in package/module `my.models.regression.linear` is being decorated,
+    then the status file is `my.models.regression.linear.testit` in the notify directory.
     
     If the decorated function is in a launching script (hence its `module` is named `__main__`),
     then the full path of the script is used to construct the status file's name.
@@ -164,7 +164,7 @@ def notify(exception_classes: Exception = None,
             # result = ...
             if result is None:
                 raise MySpecialError('omg!')
-                
+
             #...
             #...
 
@@ -221,7 +221,7 @@ def notify(exception_classes: Exception = None,
                     decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('mars-info', status, msg)
+                    notify_slack('info', status, msg)
                 log_notify(notifile, status, status_msg)
                 return z
             except exception_classes as e:
@@ -229,7 +229,7 @@ def notify(exception_classes: Exception = None,
                 msg = '{}\n\n{}\n{}'.format(decloc, format_exc(), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('mars-alerts', status, msg)
+                    notify_slack('alerts', status, msg)
                 log_notify(notifile, status, status_msg)
                 raise
             except:
@@ -238,7 +238,7 @@ def notify(exception_classes: Exception = None,
                         decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('mars-info', status, msg)
+                    notify_slack('info', status, msg)
                 log_notify(notifile, status, status_msg)
                 raise
 

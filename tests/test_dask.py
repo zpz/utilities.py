@@ -1,6 +1,6 @@
 from pytest import fixture
 
-from mars.utils.dask import Dask, LocalDask
+from utilities.dask import Dask, LocalDask
 
 
 # @fixture(scope='module')
