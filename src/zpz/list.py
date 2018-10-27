@@ -1,10 +1,6 @@
 import collections
 
 
-def isiterable(x):
-    return isinstance(x, collections.Iterable)
-
-
 def flatten(x):
     if x == []:
         return x

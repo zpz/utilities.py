@@ -30,7 +30,7 @@ def delete_key(bucket: str, key: str) -> None:
     return _delete_key(_get_client(), bucket, key)
 
 
-class Bucket:
+class S3Bucket:
     def __init__(self, bucket):
         self._bucket = boto3.resource('s3').Bucket(bucket)
 

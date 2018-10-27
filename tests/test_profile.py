@@ -1,9 +1,9 @@
 import math
 
-from zpz import profiler
+from zpz import profile
 
 
-@profiler.profiled()
+@profile.profiled()
 def test_profiler():
     result = 0.
     for i in range(1000000):
