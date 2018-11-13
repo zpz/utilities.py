@@ -227,3 +227,4 @@ def notify(exception_classes: Exception = None,
         return decorated
 
     return decorator
+
