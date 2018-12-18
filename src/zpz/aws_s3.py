@@ -1,9 +1,16 @@
+import logging
 from pathlib import Path
+import time
+from typing import List
 
 import boto3
 
 # This module requires a directory `.aws/` containing credentials in the home directory.
-# Or environment variables `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
+# Or environment variables `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`, which we set
+# in Docker images.
+
+
+logger = logging.getLogger(__name__)
 
 
 def _get_client():
@@ -32,7 +39,24 @@ def delete_key(bucket: str, key: str) -> None:
 
 class Bucket:
     def __init__(self, bucket):
+        for header in ('s3://', 's3n://'):
+            if bucket.startswith(header):
+                bucket = bucket[len(header) :]
+                break
+        if '/' in bucket:
+            bucket = bucket[: bucket.find('/')]
         self._bucket = boto3.resource('s3').Bucket(bucket)
+
+    @property
+    def name(self):
+        return self._bucket.name
+
+    def _remove_bucket_key(self, key):
+        for header in ('s3://', 's3n://'):
+            if key.startswith(header):
+                assert key.startswith(header + self.name + '/')
+                key = key[(len(header) + len(self.name) + 1) :]
+        return key
 
     def upload(self, local_file: str, s3_key: str) -> None:
         '''
@@ -41,11 +65,11 @@ class Bucket:
         `local_file`: path to local file.
         `s3_key`: S3 'key'.
         
-        Example: suppose current bucket is s3://my-company, with
+        Example: suppose current bucket is s3://xad-science, with
 
         local_file: /home/zepu/work/data/xyz/memo.txt
-        s3_key: cool_idea/memo
-        --> remote file: s3://my-company/cool_idea/memo
+        s3_key: smart_location/memo
+        --> remote file: s3://xad-science/smart_location/memo
 
         Existing file with the same name with be overwritten.
         '''
@@ -53,6 +77,7 @@ class Bucket:
         if not local_file.is_file():
             raise Exception('a file name is expected')
         data = open(local_file, 'rb')
+        s3_key = self._remove_bucket_key(s3_key)
         self._bucket.put_object(Key=s3_key, Body=data)
 
     def upload_tree(self, local_path: str, s3_path: str,
@@ -69,30 +94,31 @@ class Bucket:
             '**/*.py' (every Python module recursively under `local_path`),
             etc.
 
-        Example: suppose current bucket is s3://my-company, with
+        Example: suppose current bucket is s3://xad-science, with
         
         local_path: /home/zepu/work/data/xyz, containing
             .../xyz/a.txt, 
             .../xyz/b.txt,
             ../xyz/zyx/aa.txt)
-        s3_path: cool_idea
+        s3_path: smart_location
         s3_name: '**/*'
         --> remote files: 
-            s3://my-company/cool_idea/xyz/a.txt
-            s3://my-company/cool_idea/xyz/b.txt
-            s3://my-compnay/cool_idea/xyz/zyx/aa.txt
-            
+            s3://xad-science/smart_location/xyz/a.txt
+            s3://xad-science/smart_location/xyz/b.txt
+            s3://xad-science/smart_location/xyz/zyx/aa.txt
+
         local_path: /home/zepu/work/data/xyz/ (note the trailing '/')
         --> remote files: 
-            s3://my-company/cool_idea/a.txt
-            s3://my-company/cool_idea/b.txt
-            s3://my-company/cool_idea/zyx/aa.txt
+            s3://xad-science/smart_location/a.txt
+            s3://xad-science/smart_location/b.txt
+            s3://xad-science/smart_location/zyx/aa.txt
         '''
         with_root = not local_path.endswith('/')
         local_path = Path(local_path)
         if not local_path.is_dir():
             raise Exception('a directory name is expected')
         nodes = [v for v in local_path.glob(pattern) if v.is_file()]
+        s3_path = self._remove_bucket_key(s3_path)
         for node in nodes:
             key = node.relative_to(local_path)
             if with_root:
@@ -101,11 +127,13 @@ class Bucket:
             self.upload(node, str(key))
 
     def download(self, s3_key: str, local_file: str = None) -> None:
+        s3_key = self._remove_bucket_key(s3_key)
         if local_file is None:
             local_file = str(Path(s3_key).name)
         self._bucket.download_file(s3_key, local_file)
 
     def download_tree(self, s3_path: str, local_path: str = None) -> None:
+        s3_path = self._remove_bucket_key(s3_path)
         raise NotImplementedError
 
     def ls(self, key, recursive: bool=False):
@@ -120,6 +148,8 @@ class Bucket:
         # So if you know `key` is a `directory`, then it's a good idea to
         # include the trailing `/` in `key`.
 
+        key = self._remove_bucket_key(key)
+    
         z = self._bucket.objects.filter(Prefix=key)
 
         if key.endswith('/'):
@@ -141,18 +171,35 @@ class Bucket:
             return sorted(list(keys))
 
     def has(self, key: str) -> bool:
+        key = self._remove_bucket_key(key)
+
         if not hasattr(self, '_s3'):
             self._s3 = _get_client()
         return _has_key(self._s3, self._bucket.name, key)
 
     def delete(self, key: str) -> None:
+        key = self._remove_bucket_key(key)
+
         if not hasattr(self, '_s3'):
             self._s3 = _get_client()
         _delete_key(self._s3, self._bucket.name, key)
 
     def delete_tree(self, s3_path: str) -> int:
+        s3_path = self._remove_bucket_key(s3_path)
+        
+        n = 0
+        while True:
+            nn = self._delete_tree(s3_path)
+            if nn == 0:
+                break
+            n = max(n, nn)
+            time.sleep(0.5)
+        return n
+
+    def _delete_tree(self, s3_path: str) -> int:
         '''
         Return the number of objects deleted.
+
         After this operation, the 'folder' `s3_path` is also gone.
         
         TODO: this is not the fastest way to do it.

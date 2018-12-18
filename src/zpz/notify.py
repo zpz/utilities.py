@@ -5,48 +5,30 @@ import json
 import logging
 import os
 from pathlib import Path
-import threading
 from traceback import format_exc
 from typing import Union, Optional
-import urllib.request
 
 import arrow
 
-from .profiler import Timer
+from .profile import Timer
+from .slack import post as post_to_slack
+
 
 logger = logging.getLogger(__name__)
 
-SLACK_NOTIFY_CHANNELS = ['alerts', 'info']
 
-# Reference:
-# search for 'incoming webhooks for slack'
+def notify_ok(subject: str, msg: str):
+    # Need to a way to get the webhook URL of the slack channel, e.g.
+    # via environment variables.
+    url = 'abc' # for example
+    post_to_slack(url, subject, msg)
 
 
-def notify_slack(slack_channel: str, status: str, msg: str) -> None:
-    if slack_channel not in SLACK_NOTIFY_CHANNELS:
-        logger.error(
-            'the requested Slack notification channel, %s, is not supported',
-            slack_channel)
-        return
-
-    slack_channel = slack_channel.replace('-', '').replace('_', '').upper()
-    url = os.environ['SLACK_' + slack_channel + '_WEBHOOK_URL']
-    dt = arrow.utcnow()
-    # dt1 = dt.format('YYYY-MM-DD HH:mm:ss') + ' UTC'
-    dt2 = dt.to('US/Pacific').format('YYYY-MM-DD HH:mm:ss') + ' Pacific'
-
-    json_data = json.dumps({
-        'text': '--- {} ---\n{}\n{}'.format(status, dt2, msg)
-    }).encode('ascii')
-    req = urllib.request.Request(
-        url, data=json_data, headers={'Content-type': 'application/json'})
-    thr = threading.Thread(target=urllib.request.urlopen, args=(req, ))
-    try:
-        thr.start()
-    except Exception as e:
-        logger.error('failed to send alert to Slack:\n%s', str(e))
-
-    # TODO: is this the right way to send emails async?
+def notify_error(subject: str, msg: str):
+    # Need to a way to get the webhook URL of the slack channel, e.g.
+    # via environment variables.
+    url = 'def' # for example
+    post_to_slack(url, subject, msg)
 
 
 def log_notify(filename, status, info):
@@ -221,7 +203,7 @@ def notify(exception_classes: Exception = None,
                     decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('info', status, msg)
+                    notify_ok(status, msg)
                 log_notify(notifile, status, status_msg)
                 return z
             except exception_classes as e:
@@ -229,7 +211,7 @@ def notify(exception_classes: Exception = None,
                 msg = '{}\n\n{}\n{}'.format(decloc, format_exc(), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('alerts', status, msg)
+                    notify_error(status, msg)
                 log_notify(notifile, status, status_msg)
                 raise
             except:
@@ -238,10 +220,11 @@ def notify(exception_classes: Exception = None,
                         decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
-                    notify_slack('info', status, msg)
+                    notify_ok(status, msg)
                 log_notify(notifile, status, status_msg)
                 raise
 
         return decorated
 
     return decorator
+

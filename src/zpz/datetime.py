@@ -1,6 +1,6 @@
 from datetime import datetime
 from pytz import timezone
-from typing import List, Union
+from typing import List, Union, Tuple
 
 import arrow
 

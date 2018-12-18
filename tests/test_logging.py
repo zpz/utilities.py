@@ -1,6 +1,6 @@
 import logging
 
-from zpz import config_logger
+from zpz.logging import config_logger
 
 logger = logging.getLogger(__name__)
 

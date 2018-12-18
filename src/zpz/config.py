@@ -43,26 +43,22 @@ For complex values, use JSON strings. Note, quotation marks in JSON strings shou
 """
 
 import configparser
+import os
 
 
 def read_ini_config(file_name: str,
                     section_name: str = None,
-                    allow_no_value: bool = True) -> dict:
+                    allow_no_value=True) -> dict:
     """
-    This is a convenience function for getting the content of an INI-style config file
-    (for reading only).
+    Get the content of an INI-style config file (for read-only).
 
-    The returned object works much like a ``dict`` thanks to the
-    *mapping protocol access* capabilities in Python 3. For example,
-    assuming the config file is '/myproject/test.cfg'::
+    Args:
+        file_name: config file name including path so that the file can be found
+            by this function; an absolute full path will be most reliable.
+        section_name: name of section in the INI file; if `None`, whole file is returned.
 
-        conf = read_ini_config('/myproject/test.cfg')
-        print(conf['server']['host'])   # print '1.2.3.4'
-
-        server = conf['server']
-        print(server['port'])    # print '28'
-
-        # Now can pass 'server' on and use it largely as if it's a `dict`.
+    The returned object works much like a `dict` thanks to the
+    *mapping protocol access* capabilities in Python 3.
     """
     conf = configparser.ConfigParser(allow_no_value=allow_no_value)
     conf.read(file_name)
