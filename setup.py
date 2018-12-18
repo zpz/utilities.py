@@ -17,9 +17,9 @@ setup(
     long_description=README,
     long_description_content_type='text/markdown',
     url='https://github.com/zpz/utilities.py',
-    license='MIT',
+    license='BSD',
     classifiers=[
-        'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: BSD License',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
     ],
