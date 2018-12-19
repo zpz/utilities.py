@@ -5,8 +5,8 @@ from distributed import Client as Client
 
 
 class Dask(Client):
-    def __init__(self) -> None:
-        scheduler = os.environ['DASK_SCHEDULER_URL']
+    def __init__(self, scheduler_url=None) -> None:
+        scheduler = scheduler_url or os.environ['DASK_SCHEDULER_URL']
         super().__init__(scheduler)
 
 

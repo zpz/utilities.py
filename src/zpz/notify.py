@@ -72,7 +72,6 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
     return False
 
 
-
 def notify(exception_classes: Exception = None,
            debug: bool = False,
            with_args: bool = True,
@@ -123,7 +122,7 @@ def notify(exception_classes: Exception = None,
 
         @notify()
         def main():
-            # do things that could raise exeptions
+            # do things that could raise exceptions
             # ...
 
         if __name__ == '__main__':
