@@ -5,9 +5,8 @@ from typing import List
 
 import boto3
 
-# This module requires a directory `.aws/` containing credentials in the home directory.
-# Or environment variables `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`, which we set
-# in Docker images.
+# This module requires a directory `.aws/` containing credentials in the home directory,
+# or environment variables `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
 
 
 logger = logging.getLogger(__name__)
