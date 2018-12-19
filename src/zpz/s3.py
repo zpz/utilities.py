@@ -64,11 +64,11 @@ class Bucket:
         `local_file`: path to local file.
         `s3_key`: S3 'key'.
         
-        Example: suppose current bucket is s3://xad-science, with
+        Example: suppose current bucket is s3://my-org, with
 
         local_file: /home/zepu/work/data/xyz/memo.txt
-        s3_key: smart_location/memo
-        --> remote file: s3://xad-science/smart_location/memo
+        s3_key: mysurvey/memo
+        --> remote file: s3://my-org/mysurvey/memo
 
         Existing file with the same name with be overwritten.
         '''
@@ -93,24 +93,24 @@ class Bucket:
             '**/*.py' (every Python module recursively under `local_path`),
             etc.
 
-        Example: suppose current bucket is s3://xad-science, with
+        Example: suppose current bucket is s3://my-org, with
         
-        local_path: /home/zepu/work/data/xyz, containing
+        local_path: /home/me/work/data/xyz, containing
             .../xyz/a.txt, 
             .../xyz/b.txt,
             ../xyz/zyx/aa.txt)
-        s3_path: smart_location
+        s3_path: dataset1
         s3_name: '**/*'
         --> remote files: 
-            s3://xad-science/smart_location/xyz/a.txt
-            s3://xad-science/smart_location/xyz/b.txt
-            s3://xad-science/smart_location/xyz/zyx/aa.txt
+            s3://my-org/dataset1/xyz/a.txt
+            s3://my-org/dataset1/xyz/b.txt
+            s3://my-org/dataset1/xyz/zyx/aa.txt
 
-        local_path: /home/zepu/work/data/xyz/ (note the trailing '/')
+        local_path: /home/me/work/data/xyz/ (note the trailing '/')
         --> remote files: 
-            s3://xad-science/smart_location/a.txt
-            s3://xad-science/smart_location/b.txt
-            s3://xad-science/smart_location/zyx/aa.txt
+            s3://my-org/dataset1/a.txt
+            s3://my-org/dataset1/b.txt
+            s3://my-org/dataset1/zyx/aa.txt
         '''
         with_root = not local_path.endswith('/')
         local_path = Path(local_path)
