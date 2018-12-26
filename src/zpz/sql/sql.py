@@ -2,6 +2,7 @@ import logging
 import textwrap
 from typing import Union, Sequence, List, Tuple, Callable, Optional
 
+from retrying import retry
 import sqlparse
 import pandas as pd
 
@@ -102,6 +103,7 @@ class SQLReader:
                 str(self._cursor_args))
             raise
 
+    @retry(wait_exponential_multiplier=1000, wait_exponential_max=10000, stop_max_attempt_number=7)
     def _connect(self) -> None:
         try:
             self._conn = self._conn_func(**self._conn_args)
@@ -239,7 +241,7 @@ class SQLClient(SQLReader):
 
     def write(self, sql: Union[str, List[str]], **kwargs):
         if isinstance(sql, str):
-            sql = split_sql(sql)
-        for s in sql:
-            self._execute(s, **kwargs)
+            sql = [sql]
+        for ss in sql:
+            self._execute(ss, **kwargs)
         return self

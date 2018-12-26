@@ -12,18 +12,18 @@ logger = logging.getLogger(__name__)
 class MySQL(SQLClient):
     def __init__(self,
                  *,
-                 user,
-                 password,
-                 database,
-                 host,       # MySQL server url
-                 port=3306,  # We use a non-standard port, so this is mandatory
+                 user: str,
+                 password: str,
+                 database: str,
+                 host: str,       # MySQL server url
+                 port: int=3306,  # We use a non-standard port, so this is mandatory
                  **kwargs):
         super().__init__(
             conn_func=pymysql.connect,
             user=user,
             password=password,
             database=database,
-            port=int(port),
+            port=port,
             **kwargs)
 
     @property

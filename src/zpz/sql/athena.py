@@ -68,11 +68,6 @@ def reduce_athena_logging():
     reduce_boto_logging()
 
 
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000, stop_max_attempt_number=7)
-def get_athena():
-    return Athena()
-
-
 class AthenaTable(HiveTableMixin):
     def __init__(self, location: str, **kwargs) -> None:
         assert location.startswith('s3://')
@@ -119,35 +114,3 @@ class AthenaTable(HiveTableMixin):
         engine.write(sql)
         self.update_partitions(engine, *partition_values)
         engine.write(f'DROP TABLE IF EXISTS {tmp_tb}')
-
-    @classmethod
-    def from_hive_table(cls, table: 'HiveTable', db_name: str, tb_name: str=None) -> 'AthenaTable':
-        '''
-        Use case of this method:
-
-            If we have defined and manipulated an _external_ table in Hive,
-            then the data is in S3 but meta data is in Hadoop.
-            This table is not available to Athena because the meta data is not in S3.
-            The current method takes the existing Hive (external) table definition
-            and creates an AthenaTable object, so that the table's meta data is in sync
-            with the Hive table. After calling `create` on the AthenaTable object,
-            the table is present in the S3 meta data store, so that the table can be used
-            by Athena.
-
-            The table meta data in Hadoop and in S3 are independent of each other.
-            Therefore if the table's data is modified by either side of Hive and Athena,
-            the other side needs to update partitions.
-        '''
-        assert table.s3external
-        location = table.location
-        if location.startswith('s3n://'):
-            location = 's3://' + location[len('s3n://') :]
-        return cls(
-            db_name=db_name,
-            tb_name=tb_name or table.tb_name,
-            columns=table.columns,
-            partitions=table.partitions,
-            stored_as=table.stored_as,
-            field_delimiter=table.field_delimiter,
-            compression=table.compression,
-            location=location)

@@ -18,30 +18,26 @@ logger = logging.getLogger(__name__)
 class Hive(SQLClient):
     def __init__(self,
                  *,
-                 user,
-                 host,
-                 port=10000,
-                 auth_mechanism='PLAIN',
-                 exec_engine='tez',
-                 queue: str=None,
+                 user: str,
+                 host: str,
+                 port: int=10000,
+                 auth_mechanism: str='PLAIN',
                  dynamic_partition: bool=True,
                  configuration: dict=None):
         super().__init__(
             conn_func=dbapi.connect,
             cursor_args={'user': user},
             host=host,
-            port=int(port),
+            port=port,
             user=user,
             auth_mechanism=auth_mechanism)
         config = configuration or {}
-        if exec_engine == 'tez':
-            config['hive.execution.engine'] = 'tez'
-            if queue:
-                config['tez.queue.name'] = queue
         if dynamic_partition:
             config['hive.exec.dynamic.partition'] = 'true'
             config['hive.exec.dynamic.partition.mode'] = 'nonstrict'
 
+        # config['hive.execution.engine'] = 'tez'
+        # config['tez.queue.name'] = 'myqueue'
         config['hive.optimize.s3.query'] = 'true'
         config['hive.enforce.bucketing'] = 'true'
 
@@ -100,12 +96,6 @@ class Hive(SQLClient):
         sql = f'DESCRIBE FORMATTED {db_name}.{tb_name}'
         z = self.read(sql).fetchall_pandas()
         print(z)
-
-
-@retry(wait_exponential_multiplier=1000, wait_exponential_max=10000, stop_max_attempt_number=7)
-def get_hive(user, host, queue=None, **kwargs):
-    # `host`: hive server url.
-    return Hive(user=user, queue=queue, host=host, **kwargs)
 
 
 class HiveTableMixin:
@@ -337,10 +327,42 @@ class HiveTable(HiveTableMixin):
             assert location.startswith('s3n://')
         super().__init__(**kwargs, location=location)
 
+    def to_athena_table(self, db_name: str, tb_name: str=None) -> 'AthenaTable':
+        '''
+        Use case of this method:
+
+            If we have defined and manipulated an _external_ table in Hive,
+            then the data is in S3 but meta data is in Hadoop.
+            This table is not available to Athena because the meta data is not in S3.
+            The current method takes the existing Hive (external) table definition
+            and creates an AthenaTable object, so that the table's meta data is in sync
+            with the Hive table. After calling `create` on the AthenaTable object,
+            the table is present in the S3 meta data store, so that the table can be used
+            by Athena.
+
+            The table meta data in Hadoop and in S3 are independent of each other.
+            Therefore if the table's data is modified by either side of Hive and Athena,
+            the other side needs to update partitions.
+        '''
+        from .athena import AthenaTable
+        assert self.s3external
+        location = self.location
+        if location.startswith('s3n://'):
+            location = 's3://' + location[len('s3n://') :]
+        return AthenaTable(
+            db_name=db_name,
+            tb_name=tb_name or self.tb_name,
+            columns=self.columns,
+            partitions=self.partitions,
+            stored_as=self.stored_as,
+            field_delimiter=self.field_delimiter,
+            compression=self.compression,
+            location=location)
+
     @classmethod
     def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str=None) -> 'HiveTable':
         '''
-        Use case is analogous to `athena.AthenaTable.from_hive_table`.
+        Use case is analogous to `to_athena_table`.
         '''
         assert table.s3external
         location = table.location

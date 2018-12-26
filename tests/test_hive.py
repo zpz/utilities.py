@@ -3,17 +3,25 @@ import os
 import arrow
 import pytest
 import impala
-from zpz.sql.hive import get_hive, HiveTable
-from zpz.sql.athena import get_athena, AthenaTable
+from zpz.sql.hive import Hive, HiveTable
+from zpz.sql.athena import Athena, AthenaTable
+
+
+@pytest.fixture(scope='module')
+def hive():
+    return Hive(user='abc', host='def')
+
+
+@pytest.fixture(scope='module')
+def athena():
+    return Athena()
 
 
 def make_tmp_name():
     return 'tmp_test_hive_fell_free_to_delete'
 
 
-def test_read():
-    hive = get_hive()
-
+def test_read(hive):
     db_name = 'default'
     tb_name = 'mytesttable'
 
@@ -32,9 +40,7 @@ def test_read():
     print(v)
 
 
-def test_read_iter():
-    hive = get_hive()
-
+def test_read_iter(hive):
     # Before 'execute' is ever called,
     # iterating over the cursor is an error.
     with pytest.raises(impala.error.ProgrammingError):
@@ -59,8 +65,7 @@ def test_read_iter():
     assert ndbs == 0
 
 
-def test_write_plain():
-    hive = get_hive()
+def test_write_plain(hive):
     db_name = hive.user
 
     dbs = hive.get_databases()
@@ -141,8 +146,7 @@ def test_write_plain():
     assert TMP_TB_NAME not in hive.get_tables(db_name)
 
 
-def test_write_table():
-    hive = get_hive()
+def test_write_table(hive):
     db_name = hive.user
 
     dbs = hive.get_databases()
@@ -208,8 +212,7 @@ def test_write_table():
     assert TMP_TB_NAME not in hive.get_tables(db_name)
 
 
-def test_s3_table():
-    hive = get_hive()
+def test_s3_table(hive):
     db_name = hive.user
 
     assert hive.has_database(db_name)
@@ -275,9 +278,8 @@ def test_s3_table():
 
 
 
-def test_athena_hive():
-    athena = get_athena()
-    athena_db_name = 'zepu'
+def test_athena_hive(hive, athena):
+    athena_db_name = 'tmp'
     athena_tb_name = make_tmp_name() + '_athena'
 
     athena_table = AthenaTable(
@@ -305,7 +307,6 @@ def test_athena_hive():
     z = athena.read(f'select * from {athena_table.full_name}').fetchall_pandas()
     assert len(z) == 4
 
-    hive = get_hive()
     hive_db_name = hive.user
 
     hive_table = HiveTable.from_athena_table(athena_table, db_name=hive_db_name)

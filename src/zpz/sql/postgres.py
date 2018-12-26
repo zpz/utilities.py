@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple
+from typing import List, Tuple, Callable
 
 import psycopg2
 
@@ -9,14 +9,14 @@ logger = logging.getLogger(__name__)
 
 
 class Postgres(SQLClient):
-    def __init__(self, *, host, user, password, dbname, port=5432, **kwargs):
+    def __init__(self, *, host: str, user: str, password: str, dbname: str, port: int=5432, **kwargs):
         super().__init__(
             conn_func=psycopg2.connect,
             host=host,
             user=user,
             password=password,
             dbname=dbname,
-            port=int(port),
+            port=port,
             **kwargs)
 
     @property
@@ -49,7 +49,7 @@ class Postgres(SQLClient):
         rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
 
-    def has_table(self, tb_name):
+    def has_table(self, tb_name: str):
         # A 'lazy' solution
         # return tb_name in self.get_tables()
 
@@ -58,7 +58,7 @@ class Postgres(SQLClient):
         return self.read(sql).fetchall()
 
     def get_table_schema(
-            self, tb_name) -> Tuple[List[str], List[Tuple[str, str, str]]]:
+            self, tb_name: str) -> Tuple[List[str], List[Tuple[str, str, str]]]:
         '''
         Returns: tuple with
             ['column_name', 'data_type', 'is_nullable'],
@@ -71,7 +71,7 @@ class Postgres(SQLClient):
         """.format(tb_name=tb_name)
         return self.read(sql).fetchall()
 
-    def get_table_columns(self, tb_name) -> List[str]:
+    def get_table_columns(self, tb_name: str) -> List[str]:
         sql = "SELECT column_name from information_schema.columns WHERE table_name = '{}'".format(
             tb_name)
         rows = self.read(sql).fetchall()

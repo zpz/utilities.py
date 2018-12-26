@@ -1,13 +1,24 @@
-from zpz.sql.athena import get_athena, AthenaTable
-from zpz.sql.hive import get_hive, HiveTable
+import pytest
+
+from zpz.sql.athena import Athena, AthenaTable
+from zpz.sql.hive import Hive, HiveTable
+
+
+@pytest.fixture(scope='module')
+def hive():
+    return Hive(user='abc', host='def')
+
+
+@pytest.fixture(scope='module')
+def athena():
+    return Athena()
 
 
 def make_tmp_name():
     return 'tmp_test_athena_feel_free_to_delete'
 
 
-def test_athena():
-    athena = get_athena()
+def test_athena(athena):
     db_name = 'myname'
     tb_name = make_tmp_name()
 
@@ -38,8 +49,7 @@ def test_athena():
     table.drop(athena)
 
 
-def test_hive_athena():
-    hive = get_hive()
+def test_hive_athena(hive, athena):
     hive_db_name = hive.user
     hive_tb_name = make_tmp_name() + '_hive'
 
@@ -67,7 +77,6 @@ def test_hive_athena():
     z = hive.read(f'select * from {hive_table.full_name}').fetchall_pandas()
     assert len(z) == 3
 
-    athena = get_athena()
     athena_db_name = 'myname'
 
     athena_table = AthenaTable.from_hive_table(hive_table, db_name=athena_db_name)
