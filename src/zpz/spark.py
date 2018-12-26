@@ -1,6 +1,5 @@
 import json
 import pkgutil
-import os
 import random
 import textwrap
 import time
@@ -8,8 +7,6 @@ from typing import Union, Optional, Iterable, Iterator
 
 import pandas as pd
 import requests
-
-from .path import relative_path
 
 # Ideas are borrowed from the python package 'pylivy'.
 
@@ -29,12 +26,10 @@ class SparkSessionError(Exception):
             self._value, ''.join(self._tb))
 
 
-def _get_livy_host(livy_server_url: Optional[str] = None):
+def _get_livy_host(livy_server_url: str):
     '''
     `livy_server_url` is server IP including port number, like '1.2.3.4:8998'.
     '''
-    livy_server_url = livy_server_url or os.environ['LIVY_SERVER_URL']
-
     # remove protocol
     idx = livy_server_url.find('://')
     if idx >= 0:
@@ -90,7 +85,7 @@ class JsonClient:
 
 class SparkSession:
     def __init__(self,
-                 livy_server_url=None,
+                 livy_server_url,
                  kind: str = 'spark'):
         '''
         When `kind` is 'spark', this takes Scala code.
@@ -143,13 +138,13 @@ class SparkSession:
 
 
 class ScalaSparkSession(SparkSession):
-    def __init__(self, livy_server_url=None):
+    def __init__(self, livy_server_url):
         super().__init__(livy_server_url, kind='spark')
 
 
 
 class PySparkSession(SparkSession):
-    def __init__(self, livy_server_url=None):
+    def __init__(self, livy_server_url):
         super().__init__(livy_server_url, kind='pyspark')
         self._tmp_var_name = '_tmp_' + str(random.randint(100, 100000))
         self.run('import pyspark; import json')
