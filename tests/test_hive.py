@@ -91,6 +91,9 @@ def test_write_plain(hive):
 
     assert TMP_TB_NAME in hive.get_tables(db_name)
 
+    # The `INSERT INTO ... VALUES` syntax is supported since Hive 0.14.
+    # For older versions, use `INSERT INTO ... SELECT * FROM ( SELECT STACK (...) ) dummy_table_name`.
+    
     sql = '''
         INSERT INTO TABLE {db}.{tb}
         VALUES ('ab', 'cd', 23), ('xx', 'y', 45)

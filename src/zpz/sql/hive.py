@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 class Hive(SQLClient):
     def __init__(self,
                  *,
-                 user: str,
                  host: str,
                  port: int=10000,
+                 user: str=None,
+                 password: str=None,
                  auth_mechanism: str='PLAIN',
                  dynamic_partition: bool=True,
                  configuration: dict=None):
@@ -30,6 +31,7 @@ class Hive(SQLClient):
             host=host,
             port=port,
             user=user,
+            password=password,
             auth_mechanism=auth_mechanism)
         config = configuration or {}
         if dynamic_partition:
