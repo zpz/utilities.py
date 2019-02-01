@@ -56,4 +56,3 @@ fi
 
 cmd="$(docker run --rm ${IMG} /usr/local/bin/make-proj-builder)"
 bash -c "${cmd}" -- $@
-#docker run --rm ${IMG} /usr/local/bin/make-proj-builder
