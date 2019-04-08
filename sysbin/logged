@@ -34,12 +34,12 @@ if [[ $# < 1 ]]; then
     exit 1
 fi
 
-command="$1"
+cmd="$1"
 shift
 args="$@"
 opts=''
 
-if [[ "${command}" == python ]]; then
+if [[ "${cmd}" == python ]]; then
     opts='-u'
 fi
 
@@ -49,22 +49,29 @@ fi
 # About logging, please refer to
 #  http://zpz.github.io/log-rotation-of-stdout/
 
-echo | multilog s1000000 n30 "${LOGDIR}"
-echo | multilog s1000000 n30 "${LOGDIR}"
-echo "========================================" | multilog s1000000 n30 "${LOGDIR}"
-date --utc +'%Y-%m-%d %H:%M:%S UTC' | multilog s1000000 n30 "${LOGDIR}"
-echo starting task \`${command} ${args}\` | multilog s1000000 n30 "${LOGDIR}"
-echo "----------------------------------------" | multilog s1000000 n30 "${LOGDIR}"
-echo | multilog s1000000 n30 "${LOGDIR}"
+function mlog {
+    if [[ "${silent}" == yes ]]; then
+        2>&1 multilog s1000000 n30 "${LOGDIR}"
+    else
+        tee 2>&1 >(multilog s1000000 n30 "${LOGDIR}")
+    fi
+}
 
-if [[ "$silent" == "yes" ]]; then
-    ${command} ${opts} ${args} 2>&1 | multilog s1000000 n30 "${LOGDIR}"
-else
-    ${command} ${opts} ${args} 2>&1 | tee >(multilog s1000000 n30 "${LOGDIR}")
-fi
 
-echo | multilog s1000000 n30 "${LOGDIR}"
-echo "----------------------------------------" | multilog s1000000 n30 "${LOGDIR}"
-date --utc +'%Y-%m-%d %H:%M:%S UTC' | multilog s1000000 n30 "${LOGDIR}"
-echo task \`${command} ${args}\` finished | multilog s1000000 n30 "${LOGDIR}"
-echo "========================================" | multilog s1000000 n30 "${LOGDIR}"
+
+echo | mlog
+echo | mlog
+echo "========================================" | mlog
+date --utc +'%Y-%m-%d %H:%M:%S UTC' | mlog
+echo starting task \`${cmd} ${args}\` | mlog
+echo "----------------------------------------" | mlog
+echo | mlog
+
+${cmd} ${opts} ${args} | mlog
+
+echo | mlog
+echo "----------------------------------------" | mlog
+date --utc +'%Y-%m-%d %H:%M:%S UTC' | mlog
+echo task \`${cmd} ${args}\` finished | mlog
+echo "========================================" | mlog
+
