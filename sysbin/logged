@@ -37,11 +37,7 @@ fi
 cmd="$1"
 shift
 args="$@"
-opts=''
 
-if [[ "${cmd}" == python ]]; then
-    opts='-u'
-fi
 
 : "${LOGDIR:?Environment variable \'LOGDIR\' is not set}"
 : "${DATADIR:?Environment variable \'DATADIR\' is not set}"
@@ -67,7 +63,11 @@ echo starting task \`${cmd} ${args}\` | mlog
 echo "----------------------------------------" | mlog
 echo | mlog
 
-${cmd} ${opts} ${args} | mlog
+if [[ "${cmd}" == python ]]; then
+    python -u ${args} | mlog
+else
+    ${cmd} ${args} | mlog
+fi
 
 echo | mlog
 echo "----------------------------------------" | mlog
