@@ -1,0 +1,3 @@
+class ZpzError(Exception):
+    pass
+    
