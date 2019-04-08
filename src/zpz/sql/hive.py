@@ -1,6 +1,9 @@
+import base64
+import inspect
 import logging
 import os
 from pprint import pprint
+from types import ModuleType
 from typing import Sequence, Tuple, List, Dict, Union
 
 from impala import dbapi
@@ -379,3 +382,36 @@ class HiveTable(HiveTableMixin):
             field_delimiter=table.field_delimiter,
             compression=table.compression,
             location=location)
+
+
+def make_udf(module_or_code: Union[ModuleType, str]) -> str:
+    '''
+    Args:
+        `module_or_code`: either a module object, or a code block as a string.
+
+    Suppose `s` is the output of this function, then it is used like this to construct a HiveQL statement:
+
+        sql = f'''
+            SELECT
+                TRANSFORM ( ...input_columns... )
+                USING '{s}'
+                AS (...output_columns...)
+            FROM {db_name}.{table_name}
+        '''
+
+    An important detail is that this string (`s`) is wrapped by single quotes in the HiveQL statement.
+    '''
+
+    if inspect.ismodule(module_or_code):
+        s = inspect.getsource(module_or_code)
+    else:
+        assert isinstance(module_or_code, str)
+        s = module_or_code
+
+    encoded = base64.b64encode(s.encode('utf-8'))
+
+    script = 'import sys, base64; code = sys.argv[1]; exec(base64.b64decode(bytes(code)));'
+
+    code = f'python -c "{script}" {str(encoded)[2:-1]}'
+
+    return code

@@ -4,7 +4,26 @@ FROM ${PARENT}
 USER root
 
 RUN pip-install \
-    'arrow==0.13.0' \
-    'avro-python3==1.8.2' \
-    'twine==1.12.1' \
-    'readme-renderer[md]==24.0'
+    'arrow' \
+    'avro-python3' \
+    'pytz' \
+    'twine' \
+    'readme-renderer[md]'
+
+# Hive
+#   sasl, thrift, thrift-sasl are required by impyla.
+# `impyla` has some issue with `thrift_sasl`.
+# Don't upgrade the versions of the following block w/o checking.
+RUN pip-install 'retrying' 'sqlparse' \
+    && apt-update \
+    && apt-install libsasl2-dev libsasl2-modules \
+    && ldconfig \
+    && apt-clean \
+    && pip-install \
+        'sasl==0.2.1' \
+        'thrift==0.11.0' \
+        'thrift_sasl==0.2.1' \
+        'impyla==0.14.0'
+
+# Install `daemontools` for the `multilog` program.
+RUN apt-update && apt-install daemontools && apt-clean

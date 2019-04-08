@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+USAGE=$(cat <<'EOF'
+Usage:
+    pipeline [-s] command [args]
+
+By default, all printouts and logging will appear in terminal,
+as well as being saved in log files.
+If `-s` is specified, then terminal printout is suppressed.
+
+`args` are arguments to be passed on to `command`.
+
+Logging is saved under "${LOGDIR}".
+The caller may want to point "${LOGDIR}" to exact locations specific to the task.
+EOF
+)
+
+if [[ $# < 1 ]]; then
+    echo "${USAGE}"
+    exit 1
+fi
+
+silent="no"
+if [[ "$1" == "-s" ]]; then
+    silent="yes"
+    shift
+fi
+if [[ $# < 1 ]]; then
+    echo "${USAGE}"
+    exit 1
+fi
+
+command="$1"
+shift
+args="$@"
+opts=''
+
+if [[ "${command}" == python ]]; then
+    opts='-u'
+fi
+
+: "${LOGDIR:?Environment variable \'LOGDIR\' is not set}"
+: "${DATADIR:?Environment variable \'DATADIR\' is not set}"
+
+# About logging, please refer to
+#  http://zpz.github.io/log-rotation-of-stdout/
+
+echo | multilog s1000000 n30 "${LOGDIR}"
+echo | multilog s1000000 n30 "${LOGDIR}"
+echo "========================================" | multilog s1000000 n30 "${LOGDIR}"
+date --utc +'%Y-%m-%d %H:%M:%S UTC' | multilog s1000000 n30 "${LOGDIR}"
+echo starting task \`${command} ${args}\` | multilog s1000000 n30 "${LOGDIR}"
+echo "----------------------------------------" | multilog s1000000 n30 "${LOGDIR}"
+echo | multilog s1000000 n30 "${LOGDIR}"
+
+if [[ "$silent" == "yes" ]]; then
+    ${command} ${opts} ${args} 2>&1 | multilog s1000000 n30 "${LOGDIR}"
+else
+    ${command} ${opts} ${args} 2>&1 | tee >(multilog s1000000 n30 "${LOGDIR}")
+fi
+
+echo | multilog s1000000 n30 "${LOGDIR}"
+echo "----------------------------------------" | multilog s1000000 n30 "${LOGDIR}"
+date --utc +'%Y-%m-%d %H:%M:%S UTC' | multilog s1000000 n30 "${LOGDIR}"
+echo task \`${command} ${args}\` finished | multilog s1000000 n30 "${LOGDIR}"
+echo "========================================" | multilog s1000000 n30 "${LOGDIR}"
