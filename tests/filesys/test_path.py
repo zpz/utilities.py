@@ -1,6 +1,6 @@
 from pathlib import PurePath
 import pytest
-from zpz.path import join_path, relative_path
+from zpz.filesys.path import join_path, relative_path
 from zpz.exceptions import ZpzError
 
 

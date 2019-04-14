@@ -1,6 +1,6 @@
 import os
 from pytest import fixture
-from zpz.path import relative_path
+from zpz.filesys.path import relative_path
 
 from zpz.spark import PySparkSession, ScalaSparkSession, SparkSession, SparkSessionError
 
