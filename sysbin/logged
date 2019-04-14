@@ -47,9 +47,9 @@ args="$@"
 
 function mlog {
     if [[ "${silent}" == yes ]]; then
-        2>&1 multilog s1000000 n30 "${LOGDIR}"
+        multilog s1000000 n30 "${LOGDIR}"
     else
-        tee 2>&1 >(multilog s1000000 n30 "${LOGDIR}")
+        tee >(multilog s1000000 n30 "${LOGDIR}")
     fi
 }
 
@@ -64,9 +64,9 @@ echo "----------------------------------------" | mlog
 echo | mlog
 
 if [[ "${cmd}" == python ]]; then
-    python -u ${args} | mlog
+    python -u ${args} 2>&1 | mlog
 else
-    ${cmd} ${args} | mlog
+    ${cmd} ${args} 2>&1 | mlog
 fi
 
 echo | mlog
