@@ -105,9 +105,27 @@ class FS(ABC):
     def mv(self, source: str, dest: str, forced: bool=False) -> None:
         raise NotImplementedError
 
-    def put_text(self, text, file_path: str) -> None:
+    def _put_text(self, text: str, full_path: str) -> None:
         raise NotImplementedError
 
-    def get_text(self, file_path: str) -> str:
+    def put_text(self, text: str, path: str, forced: bool=False) -> None:
+        full_path = self.fullpath(path)
+        self._assert_isfile(full_path)
+        if self._exists(full_path):
+            if forced:
+                self._rm(full_path)
+            else:
+                raise ZpzError(f"file '{full_path}' already exists")
+        self._put(text, full_path)
+
+    @abstractmethod
+    def _get_text(self, full_path: str) -> str:
         raise NotImplementedError
+
+    def get_text(self, path: str) -> str:
+        full_path = self.fullpath(path)
+        self._assert_isfile(full_path)
+        if not self._exists(full_path):
+            raise ZpzError(f"file '{full_path}' does not exist")
+        return self._get_text(full_path)
 
