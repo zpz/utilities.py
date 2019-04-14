@@ -1,7 +1,18 @@
 from abc import ABC, abstractmethod
+import os.path
 from typing import List
 from .path import join_path
 from ..exceptions import ZpzError
+
+
+def _get_cp_dest_path(source_full_path: str, dest_full_path: str) -> str:
+    if dest_full_path.endswith('/'):
+        assert not source_full_path.endswith('/')
+        z = os.path.basename(source_full_path)
+        assert z != '.' and z != '..'
+        return dest_full_path + z
+    return dest_full_path
+
 
 class FS(ABC):
 
@@ -56,11 +67,9 @@ class FS(ABC):
         if not self._isdir(full_path):
             raise ZpzError(f"Expecting a directory; got '{full_path}'")
 
+    @abstractmethod
     def _exists(self, full_path: str) -> bool:
-        # A subclass may choose to re-implement this
-        # in a more efficient way.
-        z = self._ls(full_path, recursive=False)
-        return len(z) > 0
+        raise NotImplementedError
 
     @abstractmethod
     def _ls(self, full_path: str, recursive: bool=False) -> List[str]:
@@ -69,12 +78,6 @@ class FS(ABC):
     @abstractmethod
     def _rm(self, full_path: str) -> None:
         pass
-
-    def isfile(self, path: str) -> bool:
-        return self._isfile(self.fullpath(path))
-
-    def isdir(self, path: str) -> bool:
-        return self._isdir(self.fullpath(path))
 
     def exists(self, path: str) -> bool:
         return self._exists(self.fullpath(path))
@@ -91,8 +94,13 @@ class FS(ABC):
             if not forced:
                 raise ZpzError(f"file '{full_path}' does not exist")
 
-    def cp(self, source: str, dest: str, forced: bool=False) -> None:
+    def _cp(self, source_full_path: str, dest_full_path: str) -> None:
         raise NotImplementedError
+
+    def cp(self, source: str, dest: str, forced: bool=False) -> None:
+        source_full = self.fullpath(source)
+        dest_full = _get_cp_dest_path(source_full, self.fullpath(dest))
+        self._cp(source_full, dest_full)
 
     def mv(self, source: str, dest: str, forced: bool=False) -> None:
         raise NotImplementedError
