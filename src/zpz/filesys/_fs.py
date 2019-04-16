@@ -5,21 +5,6 @@ from .path import join_path
 from ..exceptions import ZpzError
 
 
-def _isfile(full_path: str) -> bool:
-    return not full_path.endswith('/')
-
-def _isdir(full_path: str) -> bool:
-    return full_path.endswith('/')
-
-def _assert_isfile(full_path: str) -> None:
-    if not _isfile(full_path):
-        raise ZpzError(f"Expecting a file; got '{full_path}'")
-
-def _assert_isdir(full_path: str) -> None:
-    if not _isdir(full_path):
-        raise ZpzError(f"Expecting a directory; got '{full_path}'")
-
-
 class FS(ABC):
     '''
     This class uses POSIX style of path representations, in particular,
@@ -30,6 +15,25 @@ class FS(ABC):
     In addition, it interprets any path ending with '/' as a *directory*,
     and otherwise a *file*.
     '''
+
+    @classmethod
+    def is_file(cls, full_path: str) -> bool:
+        return not full_path.endswith('/')
+
+    @classmethod
+    def is_dir(cls, full_path: str) -> bool:
+        return full_path.endswith('/')
+
+    @classmethod
+    def _assert_is_file(cls, full_path: str) -> None:
+        if not cls.is_file(full_path):
+            raise ZpzError(f"Expecting a file; got '{full_path}'")
+
+    @classmethod
+    def _assert_is_dir(cls, full_path: str) -> None:
+        if not cls.is_dir(full_path):
+            raise ZpzError(f"Expecting a directory; got '{full_path}'")
+
     @property
     def HOME(self) -> str:
         # Do not define setter and deleter for this property.
@@ -64,7 +68,7 @@ class FS(ABC):
         self._pwd = z
         return self
 
-    def fullpath(self, path: str) -> 'FS':
+    def abspath(self, path: str) -> 'FS':
         '''
         This gives the full path of `path`,
         analogous to the Linux command `realpath`.
@@ -82,8 +86,8 @@ class FS(ABC):
         raise NotImplementedError
 
     def exists(self, path: str) -> bool:
-        full_path = self.fullpath(path)
-        if _isfile(full_path):
+        full_path = self.abspath(path)
+        if self.is_file(full_path):
             return self._exists_file(full_path)
         else:
             return self._exists_dir(full_path)
@@ -91,38 +95,38 @@ class FS(ABC):
     @abstractmethod
     def _ls_dir(self, full_path: str, recursive: bool=False) -> List[str]:
         '''
-        List items below the directory `full_path`.
+        List items below the directory `full_path` which is known to exist.
         The returned paths are relative to `full_path`.
         Subdirectories have a trailing `/`.
-
-        It is not guaranteed that the directory exists.
-        If it does not exist, or is empty, return [].
         '''
         raise NotImplementedError
 
     def ls(self, path: str='.', recursive: bool=False) -> List[str]:
-        full_path = self.fullpath(path)
-        if _isfile(full_path):
+        full_path = self.abspath(path)
+        if self.is_file(full_path):
             if self._exists_file(full_path):
                 return [path]
             else:
                 return []
 
-        z = self._ls_dir(full_path, recursive)
-        if z:
-            z = [os.path.join(path, v) for v in z]
-        return z
+        if self._exists_dir(full_path):
+            z = self._ls_dir(full_path, recursive)
+            if z:
+                z = [os.path.join(path, v) for v in z]
+            return z
+
+        return []
 
     @abstractmethod
     def _rm(self, full_path: str) -> None:
         '''
         Remove single file `full_path` that is known to exist.
         '''
-        pass
+        raise NotImplementedError
 
     def rm(self, path: str, forced: bool=False) -> None:
-        full_path = self.fullpath(path)
-        _assert_isfile(full_path)
+        full_path = self.abspath(path)
+        self._assert_is_file(full_path)
         if self._exists_file(full_path):
             self._rm(full_path)
         else:
@@ -139,12 +143,13 @@ class FS(ABC):
     def _put_text(self, text: str, full_path: str) -> None:
         '''
         Write `text` to file `full_path`, which is know to be non-existent.
+        Not only the file is non-existent, its parent directories may be non-existent as well.
         '''
         raise NotImplementedError
 
     def put_text(self, text: str, path: str, forced: bool=False) -> None:
-        full_path = self.fullpath(path)
-        _assert_isfile(full_path)
+        full_path = self.abspath(path)
+        self._assert_is_file(full_path)
         if self._exists_file(full_path):
             if forced:
                 self._rm(full_path)
@@ -160,8 +165,8 @@ class FS(ABC):
         raise NotImplementedError
 
     def get_text(self, path: str) -> str:
-        full_path = self.fullpath(path)
-        _assert_isfile(full_path)
+        full_path = self.abspath(path)
+        self._assert_is_file(full_path)
         if not self._exists_file(full_path):
             raise ZpzError(f"file '{full_path}' does not exist")
         return self._get_text(full_path)
