@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 import os.path
 from typing import List
-from .path import join_path
+from ..path import join_path
 from ..exceptions import ZpzError
 
 
-class FS(ABC):
+class Store(ABC):
     '''
     This class uses POSIX style of path representations, in particular,
 
@@ -14,6 +14,17 @@ class FS(ABC):
 
     In addition, it interprets any path ending with '/' as a *directory*,
     and otherwise a *file*.
+
+    Note 'root' is the root *inside* the store.
+    Think of an instance of this class as a 'box' or 'container'.
+    It does not have to be located at the root of the file system;
+    rather, it can be a 'directory', then '/' within this class refers to
+    this directory. It is specified by the `home` parameter of `__init__`.
+    Operations within this instance can not go beyond this store root.
+
+    For example, if `home` is '/home/user/writings/`, then one is free
+    to navigate through the Subdirectories of `/home/user/writtings/`,
+    but can not access `/home/user/`.
     '''
 
     @classmethod
@@ -34,48 +45,60 @@ class FS(ABC):
         if not cls.is_dir(full_path):
             raise ZpzError(f"Expecting a directory; got '{full_path}'")
 
+    def __init__(self, home: str='/'):
+        if not home.endswith('/'):
+            home += '/'
+        self._home = home
+        self._pwd = '/'
+
     @property
-    def HOME(self) -> str:
+    def home(self) -> str:
         # Do not define setter and deleter for this property.
         # This is a read-only attribute.
-        #
-        # If a subclass overrides this method, make sure
-        # the return value ends with `/`.
-        return '/'
+        return self._home
 
     @property
     def pwd(self) -> str:
-        # Get the 'present working directory'.
-        #
-        # Do not define setter and deleter for this property.
-        # This is a read-only attribute.
-        #
-        # To set `pwd`, use the `cd` method.
-        #
-        # Before `cd` is called, an object's `pwd` is `HOME`.
-        z = getattr(self, '_pwd', self.HOME)
-        if not z.endswith('/'):
-            z += '/'
-        return z
-
-    def cd(self, path: str=None) -> 'FS':
-        if path is None:
-            z = self.HOME
-        else:
-            z = join_path(self.pwd, path)
-        if not z.endswith('/'):
-            z += '/'
-        self._pwd = z
-        return self
-
-    def abspath(self, path: str) -> 'FS':
         '''
-        This gives the full path of `path`,
-        analogous to the Linux command `realpath`.
-        `path` may be given as relative to `pwd`,
-        or as an absolute path.
+        Get the 'present working directory'.
+        This is an 'absolute' path, but the '/' refers to `self.home`.
+
+        Do not define setter and deleter for this property.
+        This is a read-only attribute.
+
+        To set `pwd`, use the `cd` method.
+        '''
+        return self._pwd
+
+    def abspath(self, path: str) -> str:
+        '''
+        This gives the 'absolute' path within the store,
+        in other words, the return value starts with '/'
+        and that is refers to the root within the store,
+        i.e. `self.home`.
+
+        `path` may be given as relative to `self.pwd`,
+        or as an absolute path within the store (which would be returned
+        w/o change).
         '''
         return join_path(self.pwd, path)
+
+    def realpath(self, path: str) -> str:
+        '''
+        This returns the 'real' absolute path in the file system.
+        This is the concatenation of `self.home` and the path within the store.
+        '''
+        return os.path.join(self.home, self.abspath(path)[1:])
+
+    def cd(self, path: str=None) -> 'Store':
+        if path is None:
+            self._pwd = '/'
+        else:
+            z = self.abspath(path)
+            if not z.endswith('/'):
+                z += '/'
+            self._pwd = z
+        return self
 
     @abstractmethod
     def _exists_file(self, full_path: str) -> bool:
@@ -134,10 +157,25 @@ class FS(ABC):
                 raise ZpzError(f"can not remove file '{full_path}', which does not exist")
 
     def cp(self, source: str, dest: str, forced: bool=False) -> None:
+        '''
+        Copy within the store.
+        '''
         raise NotImplementedError
 
     def mv(self, source: str, dest: str, forced: bool=False) -> None:
+        '''
+        Move within the store.
+        '''
         raise NotImplementedError
+
+    def put(self, local_abs_file: str, path: str='./') -> None:
+        raise NotImplementedError
+
+    def get(self, file: str, local_abs_path: str) -> None:
+        raise NotImplementedError
+
+    def open(self, file: str):
+        raie NotImplementedError
 
     @abstractmethod
     def _put_text(self, text: str, full_path: str) -> None:

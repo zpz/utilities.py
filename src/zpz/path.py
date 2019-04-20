@@ -1,7 +1,7 @@
 import inspect
 from pathlib import PurePath
 
-from ..exceptions import ZpzError
+from .exceptions import ZpzError
 
 
 def join_path(base_dir: str, rel_path: str) -> str:
