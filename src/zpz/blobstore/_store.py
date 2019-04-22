@@ -325,6 +325,25 @@ class Store(ABC):
             raise ZpzError(f"file '{file_path}' does not exist")
         return self._get_text(abs_path)
 
+    def put_dir(self, local_abs_dir: str, dir_path: str='.', clear_dir_first: bool=False, forced: bool=False, include_hidden: bool=False) -> None:
+        _assert_is_abs(local_abs_dir)
+        _assert_is_dir(local_abs_dir)
+        dir_path = self.abspath(dir_path)
+        self._assert_is_dir(dir_path)
+        if self.exists(dir_path):
+            if clear_dir_first:
+                for z in sellf._ls_dir(dir_path):
+                    self.rm(z)
+
+        for root, dirs, files in os.walk(local_abs_dir):
+            for ddir in dirs:
+                if ddir.startswith('.') and not include_hidden):
+                    continue
+                raise NotImplementedError
+
+    def get_dir(self, dir_path: str, local_abs_dir: str, clear_dir_first: bool=False, forced: bool=False) -> None:
+        pass
+
     def open(self, file_path: str, mode: str='rt'):
         raie NotImplementedError
 
