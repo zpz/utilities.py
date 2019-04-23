@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import os.path
 import os
+import shutil
 from typing import List
 from ..path import join_path
 from ..exceptions import ZpzError
@@ -286,44 +287,15 @@ class Store(ABC):
         if not self._exists_file(abs_file):
             raise ZpzError(f"file '{self.realpath(abs_file)}' does not exist")
         local_abs_dest_file = _get_cp_dest(abs_file, local_abs_path)
-        if os.path.isfile(local_abs_path):
+        if os.path.isfile(local_abs_dest_file):
             if forced:
                 os.remove(local_abs_dest_file)
             else:
                 raise ZpzError(f"file '{local_abs_dest_file}' already exists")
+        else:
+            ddir = os.makedirs(os.paath.dirname(local_abs_dest_file), exist_ok=True)
+
         self._get(abs_file, local_abs_dest_file)
-
-    @abstractmethod
-    def _put_text(self, text: str, abs_file_path: str) -> None:
-        '''
-        Write `text` to file `abs_file_path`, which is know to be non-existent.
-        Not only the file is non-existent, its parent directories may be non-existent as well.
-        '''
-        raise NotImplementedError
-
-    def put_text(self, text: str, file_path: str, forced: bool=False) -> None:
-        abs_path = self.abspath(file_path)
-        self._assert_is_file(abs_path)
-        if self._exists_file(abs_path):
-            if forced:
-                self._rm(abs_path)
-            else:
-                raise ZpzError(f"file '{file_path}' already exists")
-        self._put_text(text, abs_path)
-
-    @abstractmethod
-    def _get_text(self, abs_file_path: str) -> str:
-        '''
-        Read the content of text file `abs_file_path`, which is known to exist.
-        '''
-        raise NotImplementedError
-
-    def get_text(self, file_path: str) -> str:
-        abs_path = self.abspath(file_path)
-        self._assert_is_file(abs_path)
-        if not self._exists_file(abs_path):
-            raise ZpzError(f"file '{file_path}' does not exist")
-        return self._get_text(abs_path)
 
     def put_dir(self, local_abs_dir: str, dir_path: str='.', clear_dir_first: bool=False, forced: bool=False, include_hidden: bool=False) -> None:
         _assert_is_abs(local_abs_dir)
@@ -335,15 +307,49 @@ class Store(ABC):
                 for z in sellf._ls_dir(dir_path):
                     self.rm(z)
 
-        for root, dirs, files in os.walk(local_abs_dir):
-            for ddir in dirs:
-                if ddir.startswith('.') and not include_hidden):
+        def listit(dir_path):
+            for z in os.listdir(dir_path)
+                if (not include_hidden) and z.startswith('.'):
                     continue
-                raise NotImplementedError
+                zz = os.path.join(dir_path, z)
+                if os.path.isdir(zz):
+                    return listit(zz)
+                if os.path.isfile(zz):
+                    yield zz
+
+        len_prefix = len(local_abs_dir)
+        pwd = self.pwd
+        self.cd(dir_path)
+        for z in listit(local_abs_dir):
+            zz = z[len_prefix: ]
+            self.put(z, z[len_prefix : ], forced=forced)
+        self.cd(pwd)
 
     def get_dir(self, dir_path: str, local_abs_dir: str, clear_dir_first: bool=False, forced: bool=False) -> None:
-        pass
+        dir_path = self.abspath(dir_path)
+        self._assert_is_dir(dir_path)
+        _assert_is_abs(local_abs_dir)
+        _assert_is_dir(local_abs_dir)
+        if os.path.isdir(local_abs_dir):
+            if clear_dir_first:
+                shutil.rmtree(local_abs_dir)
+        else:
+            os.makedirs(local_abs_dir, exist_ok=True)
+
+        len_prefix = len(dir_path)
+        for z in self._ls_dir(dir_path):
+            zz = os.path.join(local_abs_dir, z)
+            self.get(z, zz, forced=forced)
 
     def open(self, file_path: str, mode: str='rt'):
         raie NotImplementedError
+
+    def put_text(self, text: str, file_path: str, forced: bool=False) -> None:
+        if forced:
+            self.open(file_path, 'w').write(text)
+        else:
+            self.open(file_path, 'x').write(text)
+
+    def get_text(self, file_path: str) -> str:
+        return self.open(file_path).read()
 
