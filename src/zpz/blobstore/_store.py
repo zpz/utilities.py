@@ -16,6 +16,24 @@ def _assert_is_abs(path: str) -> None:
         raise ZpzError(f"Expecting an absolute path; got '{path}'")
 
 
+def _is_file(abs_path: str) -> bool:
+    return not abs_path.endswith('/')
+
+
+def _assert_is_file(abs_path: str) -> None:
+    if not _is_file(abs_path):
+        raise ZpzError(f"Expecting a file; got '{abs_path}'")
+
+
+def _is_dir(abs_path: str) -> bool:
+    return abs_path.endswith('/')
+
+
+def _assert_is_dir(abs_path: str) -> None:
+    if not _is_dir(abs_path):
+        raise ZpzError(f"Expecting a directory; got '{abs_path}'")
+
+
 def _get_cp_dest(abs_source_file: str, abs_dest_path: str) -> str:
     # Get the destination file path as if we do
     #    cp abs_source_file abs_dest_path
@@ -75,24 +93,6 @@ class Store(ABC):
     A relative path is relative to the 'current working directory', which is
     returned by `self.pwd` (which is always absolute).
     '''
-
-    @classmethod
-    def _is_file(cls, abs_path: str) -> bool:
-        return not abs_path.endswith('/')
-
-    @classmethod
-    def _assert_is_file(cls, abs_path: str) -> None:
-        if not cls._is_file(abs_path):
-            raise ZpzError(f"Expecting a file; got '{abs_path}'")
-
-    @classmethod
-    def _is_dir(cls, abs_path: str) -> bool:
-        return abs_path.endswith('/')
-
-    @classmethod
-    def _assert_is_dir(cls, abs_path: str) -> None:
-        if not cls._is_dir(abs_path):
-            raise ZpzError(f"Expecting a directory; got '{abs_path}'")
 
     def __init__(self, home: str='/'):
         '''
@@ -164,7 +164,7 @@ class Store(ABC):
 
     def exists(self, path: str) -> bool:
         abs_path = self.abspath(path)
-        if self._is_file(abs_path):
+        if _is_file(abs_path):
             return self._exists_file(abs_path)
         else:
             return len(self._ls_dir(abs_path)) > 0
@@ -180,7 +180,7 @@ class Store(ABC):
 
     def ls(self, path: str='.', recursive: bool=False) -> List[str]:
         abs_path = self.abspath(path)
-        if self._is_file(abs_path):
+        if _is_file(abs_path):
             if self._exists_file(abs_path):
                 return [path]
             else:
@@ -201,12 +201,28 @@ class Store(ABC):
 
     def rm(self, path: str, forced: bool=False) -> None:
         abs_path = self.abspath(path)
-        self._assert_is_file(abs_path)
+        _assert_is_file(abs_path)
         if self._exists_file(abs_path):
             self._rm(abs_path)
         else:
             if not forced:
                 raise ZpzError(f"file '{self.realpath(abs_path)}' does not exist")
+
+    def _stat(self, abs_path: str):
+        '''
+        Return info about the file which is known to exist.
+        '''
+        raise NotImplementedError
+
+    def stat(self, file_path: str):
+        '''
+        Return info about the file, such as size, datetime of creation,
+        full path.
+        '''
+        abs_file = self.abspath(file_path)
+        if not self._exists_file(abs_file):
+            raise ZpzError(f"file '{file_path}' does not exist")
+        return self._stat(abs_file)
 
     def _cp(self, abs_source_file: str, abs_dest_file: str) -> None:
         '''
@@ -222,7 +238,7 @@ class Store(ABC):
         Copy within the store.
         '''
         abs_source_file = self.abspath(source_file)
-        self._assert_is_file(abs_source_file)
+        _assert_is_file(abs_source_file)
         abs_dest_file = _get_cp_dest(abs_source_file, self.abspath(dest_path))
         if self._exists_file(abs_dest_file):
             if forced:
@@ -245,7 +261,7 @@ class Store(ABC):
         Move within the store.
         '''
         abs_source_file = self.abspath(source_file)
-        self._assert_is_file(abs_source_file)
+        _assert_is_file(abs_source_file)
         abs_dest_file = _get_cp_dest(abs_source_file, self.abspath(dest_path))
         if self._exists_file(abs_dest_file):
             if forced:
@@ -264,9 +280,9 @@ class Store(ABC):
 
     def put(self, local_abs_file: str, path: str='./', forced: bool=False) -> None:
         abs_dest_file = _get_cp_dest(local_abs_file, self.abspath(path))
-        if self._exists_file(dest):
+        if self._exists_file(abs_dest_file):
             if forced:
-                self._rm(dest)
+                self._rm(abs_dest_file)
             else:
                 raise ZpzError(f"file '{self.realpath(abs_dest_file)}' already exists")
         if not os.path.isfile(local_abs_file):
@@ -283,7 +299,7 @@ class Store(ABC):
 
     def get(self, file_path: str, local_abs_path: str, forced: bool=False) -> None:
         abs_file = self.abspath(file_path)
-        self._assert_is_file(abs_file)
+        _assert_is_file(abs_file)
         if not self._exists_file(abs_file):
             raise ZpzError(f"file '{self.realpath(abs_file)}' does not exist")
         local_abs_dest_file = _get_cp_dest(abs_file, local_abs_path)
@@ -293,7 +309,7 @@ class Store(ABC):
             else:
                 raise ZpzError(f"file '{local_abs_dest_file}' already exists")
         else:
-            ddir = os.makedirs(os.paath.dirname(local_abs_dest_file), exist_ok=True)
+            os.makedirs(os.path.dirname(local_abs_dest_file), exist_ok=True)
 
         self._get(abs_file, local_abs_dest_file)
 
@@ -301,14 +317,14 @@ class Store(ABC):
         _assert_is_abs(local_abs_dir)
         _assert_is_dir(local_abs_dir)
         dir_path = self.abspath(dir_path)
-        self._assert_is_dir(dir_path)
+        _assert_is_dir(dir_path)
         if self.exists(dir_path):
             if clear_dir_first:
-                for z in sellf._ls_dir(dir_path):
+                for z in self._ls_dir(dir_path):
                     self.rm(z)
 
         def listit(dir_path):
-            for z in os.listdir(dir_path)
+            for z in os.listdir(dir_path):
                 if (not include_hidden) and z.startswith('.'):
                     continue
                 zz = os.path.join(dir_path, z)
@@ -327,7 +343,7 @@ class Store(ABC):
 
     def get_dir(self, dir_path: str, local_abs_dir: str, clear_dir_first: bool=False, forced: bool=False) -> None:
         dir_path = self.abspath(dir_path)
-        self._assert_is_dir(dir_path)
+        _assert_is_dir(dir_path)
         _assert_is_abs(local_abs_dir)
         _assert_is_dir(local_abs_dir)
         if os.path.isdir(local_abs_dir):
@@ -342,7 +358,7 @@ class Store(ABC):
             self.get(z, zz, forced=forced)
 
     def open(self, file_path: str, mode: str='rt'):
-        raie NotImplementedError
+        raise NotImplementedError
 
     def put_text(self, text: str, file_path: str, forced: bool=False) -> None:
         if forced:
