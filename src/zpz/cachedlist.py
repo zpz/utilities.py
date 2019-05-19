@@ -1,6 +1,7 @@
 import os
 import os.path
 import pickle
+from shutil import rmtree
 from typing import Union, Iterable
 
 from pympler import asizeof
@@ -9,41 +10,55 @@ from .exceptions import ZpzError
 
 
 class CachedAppendOnlyList:
-    def __init__(self, path: str = None, append: bool = False):
-        self._file_lengths = []
-        self._buffer_cap = None
+    def __init__(self, path: str = None, batch_size: int = None, append: bool = False):
         self._path = path
-        if self._path:
-            assert self._path.startswith('/')
-            self._info_file = os.path.join(self._path, 'info.pickle')
-            self._store_dir = os.path.join(self._path, 'store')
-
-            if os.path.isdir(self._path):
-                z = os.listdir(self._path)
-                if z:
-                    if not append:
-                        raise ZpzError(f"path '{self._path}' is not empty")
-                    if (not os.path.isfile(self._info_file)
-                        or not os.path.isdir(self._store_dir)):
-                        raise ZpzError(f"path '{self._path}' is not empty and is not a valid {self.__class__.__name__} folder")
-                    info = pickle.load(self._info_file)
-                    self._file_lengths = info['file_lengths']
-                    self._buffer_cap = info['buffer_cap']
-                else:
-                    os.makedirs(self._store_dir)
-            else:
-                os.makedirs(self._store_dir)
-        else:
-            self._buffer_cap = -1
-
-        self._len = sum(self._file_lengths)
+        self._buffer_cap = batch_size
+        self._file_lengths = []
         self._cum_file_lengths = [0]
-        for n in self._file_lengths:
-            self._cum_file_lengths.append(self._cum_file_lengths[-1] + n)
-        self._append_buffer = []
         self._read_buffer = None
         self._read_buffer_file_idx = None
         # `self._read_buffer` contains the content of the file indicated by `self._read_buffer_file_idx`.
+        self._append_buffer = []
+        self._len = 0
+
+        if not self._path:
+            self._buffer_cap = -1
+            return
+
+        assert self._path.startswith('/')
+        self._info_file = os.path.join(self._path, 'info.pickle')
+        self._store_dir = os.path.join(self._path, 'store')
+
+        if os.path.isdir(self._path):
+            z = os.listdir(self._path)
+            if z:
+                if not append:
+                    raise ZpzError(f"path '{self._path}' is not empty")
+                if (not os.path.isfile(self._info_file)
+                    or not os.path.isdir(self._store_dir)):
+                    raise ZpzError(f"path '{self._path}' is not empty and is not a valid {self.__class__.__name__} folder")
+                info = pickle.load(self._info_file)
+                self._file_lengths = info['file_lengths']
+                if self._buffer_cap is None:
+                    self._buffer_cap = info['buffer_cap']
+                else:
+                    if self._buffer_cap != info['buffer_cap']:
+                        raise ZpzError(f"`batch_size` does not agree with the existing value")
+                if self._file_lengths:
+                    if self._file_lengths[-1] < self._buffer_cap:
+                        fname = os.path.join(self._store_dir, str(len(self._file_lengths) - 1) + '.pickle')
+                        self._append_buffer = pickle.load(open(fname, 'rb'))
+                        os.remove(fname)
+                        self._file_lengths.pop()
+
+                self._len = sum(self._file_lengths) + len(self._append_buffer)
+                self._cum_file_lengths = [0]
+                for n in self._file_lengths:
+                    self._cum_file_lengths.append(self._cum_file_lengths[-1] + n)
+            else:
+                os.makedirs(self._store_dir)
+        else:
+            os.makedirs(self._store_dir)
 
     def __len__(self) -> int:
         return self._len
@@ -51,8 +66,24 @@ class CachedAppendOnlyList:
     def __bool__(self) -> bool:
         return self._len > 0
 
+    def clear(self) -> None:
+        if self._path:
+            rmtree(self._path)
+            os.makedires(self._store_dir)
+        self._file_lengths = []
+        self._cum_file_lengths = [0]
+        self._read_buffer = None
+        self._read_buffer_file_idx = None
+        self._append_buffer = []
+        self._len = 0
+
+    def purge(self) -> None:
+        self.clear()
+        if self._path:
+            rmtree(self._path)
+
     @property
-    def buffer_capacity(self) -> int:
+    def batch_size(self) -> int:
         return self._buffer_cap
 
     def append(self, x) -> None:
@@ -159,7 +190,8 @@ class CachedAppendOnlyList:
         return self._getone(idx)
 
     def __iter__(self):
-        raise NotImplementedError
+        for i in range(self._len):
+            yield self._getone(i)
 
     def items(self):
         '''
@@ -173,7 +205,7 @@ class CachedAppendOnlyList:
             for x in obj.items():
                 ...
         '''
-        return iter(self)
+        return self.__iter__()
 
     def batches(self, batch_size: int = None):
         '''
@@ -183,9 +215,30 @@ class CachedAppendOnlyList:
                 # `batch` is a list of up to 100 items
                 ...
         '''
-        if batch_size is None:
-            batch_size = self._buffer_cap
-        raise NotImplementedError
+        if self._path:
+            assert self._buffer_cap > 0
+            if batch_size is None:
+                batch_size = self._buffer_cap
+            elif batch_size <= 0:
+                batch_size = self._buffer_cap
+            elif batch_size > self._buffer_cap:
+                raise ZpzError(f"requested `batch_size` ({batch_size}) is larger than the `batch_size` ({self._buffer_cap}) in object")
+            else:
+                pass
+        else:
+            assert self._buffer_cap > 0
+            if batch_size is None:
+                batch_size = self._len
+            elif batch_size <= 0:
+                batch_size = self._len
+            else:
+                pass
+
+        n_done = 0
+        while n_done < self._len:
+            n_todo = min(self._len - n_done, batch_size)
+            yield self._getslice(slice(n_done, n_done + n_todo))
+            n_done += n_todo
 
     def _flush(self) -> None:
         if not self._append_buffer:
