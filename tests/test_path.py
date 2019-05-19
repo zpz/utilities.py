@@ -3,7 +3,7 @@ import os
 import os.path
 import pytest
 from zpz.path import join_path, relative_path
-from zpz.path import get_temp_file, get_temp_dir
+from zpz.path import get_temp_file
 from zpz.exceptions import ZpzError
 
 

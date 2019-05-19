@@ -5,11 +5,10 @@ from shutil import rmtree
 from typing import Union, Iterable
 
 from pympler import asizeof
-
 from .exceptions import ZpzError
 
 
-class CachedAppendOnlyList:
+class Biglist:
     def __init__(self, path: str = None, batch_size: int = None, append: bool = False):
         self._path = path
         self._buffer_cap = batch_size
@@ -37,7 +36,7 @@ class CachedAppendOnlyList:
                 if (not os.path.isfile(self._info_file)
                     or not os.path.isdir(self._store_dir)):
                     raise ZpzError(f"path '{self._path}' is not empty and is not a valid {self.__class__.__name__} folder")
-                info = pickle.load(self._info_file)
+                info = pickle.load(open(self._info_file, 'rb'))
                 self._file_lengths = info['file_lengths']
                 if self._buffer_cap is None:
                     self._buffer_cap = info['buffer_cap']
@@ -69,7 +68,7 @@ class CachedAppendOnlyList:
     def clear(self) -> None:
         if self._path:
             rmtree(self._path)
-            os.makedires(self._store_dir)
+            os.makedirs(self._store_dir)
         self._file_lengths = []
         self._cum_file_lengths = [0]
         self._read_buffer = None
@@ -77,24 +76,23 @@ class CachedAppendOnlyList:
         self._append_buffer = []
         self._len = 0
 
-    def purge(self) -> None:
-        self.clear()
-        if self._path:
-            rmtree(self._path)
-
     @property
     def batch_size(self) -> int:
         return self._buffer_cap
 
+    @classmethod
+    def max_batch_size(cls, x) -> int:
+        size = asizeof.asizeof(x)  # in bytes
+        return (((1024 * 1024 * 64) // size) // 100) * 100
+
     def append(self, x) -> None:
         if self._buffer_cap is None:
-            size = asizeof.asizeof(x)  # in bytes
-            self._buffer_cap = 1024 * 1024 * 32 // size
+            self._buffer_cap = self.max_batch_size(x)
 
         self._append_buffer.append(x)
         self._len += 1
         if self._buffer_cap > 0 and len(self._append_buffer) >= self._buffer_cap:
-            self._flush()
+            self.flush()
 
     def extend(self, x: Iterable) -> None:
         for v in x:
@@ -107,7 +105,7 @@ class CachedAppendOnlyList:
 
     def _get_file_idx_for_item(self, idx: int) -> int:
         if idx >= self._cum_file_lengths[-1]:
-            return len(self._cum_file_lengths)
+            return len(self._file_lengths)
         if self._read_buffer_file_idx is None:
             for k in range(len(self._cum_file_lengths)):
                 if idx < self._cum_file_lengths[k]:
@@ -124,8 +122,10 @@ class CachedAppendOnlyList:
             return self._read_buffer_file_idx
 
     def _getone(self, idx: int):
-        if idx < 0 or idx >= self._len:
+        if idx >= self._len or idx < -self._len:
             raise IndexError(f"index '{idx}' out of range'")
+        if idx < 0:
+            idx = self._len + idx
         file_idx = self._get_file_idx_for_item(idx)
         if file_idx >= len(self._file_lengths):
             return self._append_buffer[idx - self._cum_file_lengths[-1]]
@@ -138,6 +138,12 @@ class CachedAppendOnlyList:
         start = idx.start or 0
         stop = idx.stop or self._len
         step = idx.step or 1
+
+        if start < 0:
+            start = self._len + start
+        if stop < 0:
+            step = self._len + stop
+
         n = (stop - start) // step
         if n > self._buffer_cap:
             raise ValueError(f"Requested number of elements, {n}, exceeds buffer capacity.")
@@ -240,7 +246,7 @@ class CachedAppendOnlyList:
             yield self._getslice(slice(n_done, n_done + n_todo))
             n_done += n_todo
 
-    def _flush(self) -> None:
+    def flush(self) -> None:
         if not self._append_buffer:
             return
         if not self._path:
@@ -253,5 +259,3 @@ class CachedAppendOnlyList:
             open(self._info_file, 'wb'))
         self._append_buffer = []
 
-    def __del__(self):
-        self._flush()

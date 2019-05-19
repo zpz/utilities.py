@@ -129,7 +129,7 @@ def get_temp_file(dir: str=None, ext: str='') -> str:
                 return relname
 
 
-def get_temp_dir() -> str:
+def make_temp_dir() -> str:
     '''
     Create a temporary directory, guaranteed to be existent and empty.
 
