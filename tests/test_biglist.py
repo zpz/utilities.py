@@ -50,6 +50,11 @@ def test_numbers():
         assert batch == data[n : (n+4)]
         n += 4
 
+    n = 0
+    for x in mylist:
+        assert x == data[n]
+        n += 1
+
 def test_existing_numbers():
     mylist = Biglist(PATH, append=True)
     data = list(range(29))
