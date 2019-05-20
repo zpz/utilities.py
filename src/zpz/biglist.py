@@ -282,8 +282,7 @@ class Biglist:
         Iterate over batches of specified size.
         In general, every batch has the same number of elements
         except for the final batch, which contains however many elements
-        remain. However, the caller should not rely on this assumption about
-        the length of each batch.
+        remain.
 
         Suppose `obj` is an object of this class, then
 
@@ -334,7 +333,7 @@ class Biglist:
         This is when the user should call this method.
 
         In summary, call this method once the user is done with adding elements
-        to the list.
+        to the list *in this session*, meaning in this run of the program.
         '''
         if not self._append_buffer:
             return
