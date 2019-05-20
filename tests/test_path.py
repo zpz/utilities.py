@@ -1,6 +1,9 @@
 from pathlib import PurePath
+import os
+import os.path
 import pytest
 from zpz.path import join_path, relative_path
+from zpz.path import get_temp_file
 from zpz.exceptions import ZpzError
 
 
@@ -49,3 +52,28 @@ def test_relative_path():
     p = './test_avro.py'
     z = relative_path(p)
     assert z == str(this.joinpath(p))
+
+
+def test_temp_file():
+    z = get_temp_file()
+    print(z)
+    assert z.startswith('/')
+    assert not os.path.exists(z)
+    with open(z, 'w') as f:
+        f.write('abc')
+    assert os.path.isfile(z)
+    assert open(z).read() == 'abc'
+    os.remove(z)
+    assert not os.path.exists(z)
+
+    z = get_temp_file('/tmp')
+    print(z)
+    assert '/' not in z
+    assert not os.path.exists(z)
+    with open(z, 'w') as f:
+        f.write('abcd')
+    assert os.path.isfile(z)
+    assert os.path.isfile(z)
+    assert open(z).read() == 'abcd'
+    os.remove(z)
+    assert not os.path.exists(z)

@@ -1,5 +1,8 @@
 import inspect
+import os.path
 from pathlib import PurePath
+import tempfile
+import uuid
 
 from .exceptions import ZpzError
 
@@ -95,3 +98,44 @@ def relative_path(path: str) -> str:
     assert caller.endswith('.py')
     p = PurePath(caller).parent
     return join_path(str(p), path)
+
+
+def get_temp_file(dir: str=None, ext: str='') -> str:
+    '''
+    Get a temporary file name. The file does not exist, and is not created.
+
+    Return the absolute path if `dir` is not specified;
+    otherwise return a file name under that directory.
+
+    The caller should take care to delete the temporary file after use,
+    e.g. using `os.remove`.
+    '''
+    if dir is None:
+        dir = tempfile.gettempdir()
+        return_abs_name = True
+    else:
+        assert dir.startswith('/')
+        assert os.path.isdir(dir)
+        return_abs_name = False
+    if ext:
+        ext = '.' + ext
+    while True:
+        relname = str(uuid.uuid4()) + ext
+        absname = os.path.join(dir, relname)
+        if not os.path.isfile(absname):
+            if return_abs_name:
+                return absname
+            else:
+                return relname
+
+
+def make_temp_dir() -> str:
+    '''
+    Create a temporary directory, guaranteed to be existent and empty.
+
+    Return the absolute path.
+
+    The caller should take care to delete the directory after use,
+    e.g. using `shutil.rmtree`.
+    '''
+    return tempfile.mkdtemp()
