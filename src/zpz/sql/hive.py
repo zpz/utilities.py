@@ -391,13 +391,13 @@ def make_udf(module_or_code: Union[ModuleType, str]) -> str:
 
     Suppose `s` is the output of this function, then it is used like this to construct a HiveQL statement:
 
-        sql = f'''
+        sql = f"
             SELECT
                 TRANSFORM ( ...input_columns... )
                 USING '{s}'
                 AS (...output_columns...)
             FROM {db_name}.{table_name}
-        '''
+        "
 
     An important detail is that this string (`s`) is wrapped by single quotes in the HiveQL statement.
     '''
