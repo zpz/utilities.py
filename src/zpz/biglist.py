@@ -239,10 +239,13 @@ class Biglist:
             if idx < 0:
                 idx = self._len + idx
             file_idx = self._get_file_idx_for_item(idx)
+
             if file_idx >= len(self._file_lengths):
                 return self._append_buffer[idx - self._cum_file_lengths[-1]]
+
             if file_idx != self._read_buffer_file_idx:
                 self._load_file_to_buffer(file_idx)
+
             n1 = self._cum_file_lengths[file_idx]
             n2 = self._cum_file_lengths[file_idx + 1]
             assert n1 <= idx < n2
