@@ -9,6 +9,33 @@ from pympler import asizeof
 from .exceptions import ZpzError
 
 
+def slice_to_range(idx: slice, length: int):
+        start, stop, step = idx.start, idx.stop, idx.step
+        if step is None:
+            step = 1
+        else:
+            if step == 0:
+                raise ValueError('slice step cannot be zero')
+
+        if step > 0:
+            if start is None:
+                start = 0
+            if stop is None:
+                stop = length
+        else:
+            if start is None:
+                start = length - 1
+            if stop is None:
+                stop = -1
+
+        if start < 0:
+            start = length + start
+        if stop < 0:
+            stop = length + stop
+
+        return range(start, stop, step)
+
+
 class Biglist:
     '''
     `Biglist` implements a single-machine, out-of-memory list, that is,
@@ -192,98 +219,51 @@ class Biglist:
         else:
             return self._read_buffer_file_idx
 
-    def _getone(self, idx: int):
-        if idx >= self._len or idx < -self._len:
-            raise IndexError(f"index '{idx}' out of range'")
-        if idx < 0:
-            idx = self._len + idx
-        file_idx = self._get_file_idx_for_item(idx)
-        if file_idx >= len(self._file_lengths):
-            return self._append_buffer[idx - self._cum_file_lengths[-1]]
-        if file_idx != self._read_buffer_file_idx:
-            self._load_file_to_buffer(file_idx)
-        assert self._cum_file_lengths[file_idx] <= idx < self._cum_file_lengths[file_idx + 1]
-        return self._read_buffer[idx - self._cum_file_lengths[file_idx]]
-
     def _getslice(self, idx: slice):
-        start = idx.start or 0
-        stop = idx.stop or self._len
-        step = idx.step or 1
-
-        if start < 0:
-            start = self._len + start
-        if stop < 0:
-            step = self._len + stop
-
-        n = (stop - start) // step
-        if n > self._buffer_cap:
-            raise ValueError(f"Requested number of elements, {n}, exceeds buffer capacity.")
-
-        first = start
-        last = start + step * (n - 1)
-        if first < 0 or first >= self._len or last < 0 or last >= self._len:
-            raise IndexError("index out of range")
-
-        fidx_first = self._get_file_idx_for_item(first)
-        fidx_last = self._get_file_idx_for_item(last)
-
-        if fidx_first == fidx_last:
-            if fidx_first == len(self._file_lengths):
-                k0 = self._cum_file_lengths[-1]
-                return self._append_buffer[(start - k0) : (stop - k0) : step]
-            if fidx_first != self._read_buffer_file_idx:
-                self._load_file_to_buffer(fidx_first)
-            k0 = self._cum_file_lengths[fidx_first]
-            return self._read_buffer[(start - k0) : (stop - k0) : step]
-
-        # Now the requested slice straddles multiple files.
-        # Since we only read in a single file at any point in time,
-        # the result of this request will be hosted by a separate list.
-        result = []
-        for fidx in range(fidx_first, fidx_last + (1 if step > 0 else -1), step):
-            if fidx == len(self._file_lengths):
-                k = self._cum_file_lengths[-1]
-                m = self._len
-                buffer = self._append_buffer
-            else:
-                if fidx != self._read_buffer_file_idx:
-                    self._load_file_to_buffer(fidx)
-                k = self._cum_file_lengths[fidx]
-                m = self._cum_file_lengths[fidx + 1]
-                buffer = self._read_buffer
-            n_result_old = len(result)
-            if step > 0:
-                result.extend(buffer[(start - k) : min(m - k, stop - k) : step])
-            else:
-                result.extend(buffer[(start - k) : max(-1, stop - k) : step])
-            dn = len(result) - n_result_old
-            start = start + step * dn
-
-        return result
+        assert isinstance(idx, slice)
+        idx = slice_to_range(idx, self._len)
+        for i in idx:
+            yield self.__getitem__(i)
 
     def __getitem__(self, idx: Union[int, slice]):
         '''
         Element access by single index or slice.
         Negative index and all forms of slice work as expected.
+
+        Sliced access borrows the `slice` syntax but behaves a little differently:
+        it returns an generator, not a list; it does no copying whatsoever.
         '''
-        if isinstance(idx, slice):
+        if isinstance(idx, int):
+            if idx >= self._len or idx < -self._len:
+                raise IndexError(f"index '{idx}' out of range'")
+            if idx < 0:
+                idx = self._len + idx
+            file_idx = self._get_file_idx_for_item(idx)
+            if file_idx >= len(self._file_lengths):
+                return self._append_buffer[idx - self._cum_file_lengths[-1]]
+            if file_idx != self._read_buffer_file_idx:
+                self._load_file_to_buffer(file_idx)
+            n1 = self._cum_file_lengths[file_idx]
+            n2 = self._cum_file_lengths[file_idx + 1]
+            assert n1 <= idx < n2
+            return self._read_buffer[idx - n1]
+        else:
+            assert isinstance(idx, slice)
             return self._getslice(idx)
-        return self._getone(idx)
 
     def __iter__(self):
         '''
         Iterate over single elements.
         '''
         for i in range(self._len):
-            yield self._getone(i)
+            yield self.__getitem__(i)
 
     def batches(self, batch_size: int = None):
         '''
         Iterate over batches of specified size.
         In general, every batch has the same number of elements
         except for the final batch, which contains however many elements
-        remain. However, the caller should not rely on this assumption about
-        the length of each batch.
+        remain.
 
         Suppose `obj` is an object of this class, then
 
@@ -292,32 +272,23 @@ class Biglist:
                 ...
 
         `batch_size`: if missing, an internal value (which is equal to the size of disk files)
-        is used. This is the most efficient case, because any single batch will not straddle
-        multiple files.
+        is used.
         '''
-        if self._path:
-            assert self._buffer_cap > 0
-            if batch_size is None:
+        assert self._buffer_cap > 0
+        if batch_size is None:
+            if self._path:
                 batch_size = self._buffer_cap
-            elif batch_size <= 0:
-                batch_size = self._buffer_cap
-            elif batch_size > self._buffer_cap:
-                raise ZpzError(f"requested `batch_size` ({batch_size}) is larger than the `batch_size` ({self._buffer_cap}) in object")
             else:
-                pass
+                batch_size = self._len
+        elif batch_size <= 0:
+            batch_size = self._len
         else:
-            assert self._buffer_cap > 0
-            if batch_size is None:
-                batch_size = self._len
-            elif batch_size <= 0:
-                batch_size = self._len
-            else:
-                pass
+            batch_size = min(batch_size, self._len)
 
         n_done = 0
         while n_done < self._len:
             n_todo = min(self._len - n_done, batch_size)
-            yield self._getslice(slice(n_done, n_done + n_todo))
+            yield self.__getitem__(slice(n_done, n_done + n_todo))
             n_done += n_todo
 
     def flush(self) -> None:
@@ -334,7 +305,7 @@ class Biglist:
         This is when the user should call this method.
 
         In summary, call this method once the user is done with adding elements
-        to the list.
+        to the list *in this session*, meaning in this run of the program.
         '''
         if not self._append_buffer:
             return
