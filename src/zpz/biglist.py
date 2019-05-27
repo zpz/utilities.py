@@ -2,10 +2,10 @@ import os
 import os.path
 import pickle
 from shutil import rmtree
+import tempfile
 from typing import Union, Iterable
 import warnings
 
-from pympler import asizeof
 from .exceptions import ZpzError
 
 
@@ -42,18 +42,12 @@ class Biglist:
     the list can exceed the capacity of the memory, but can be stored on the hard drive
     of the single machine.
 
-    The list can be appended to via `append` (discouraged) and `extend` (recommended).
+    The list can be appended to via `append` and `extend`.
     Elements can be accessed by single index, slice, and a single-element iterator or batch iterator.
 
     Existing elements can not be modified.
 
-    `batch_size`, in terms of number of elements, is both the in-memory buffer size
-    and file size. When accessing elements by slice or by batch iterator, this is the upper limit
-    of the number of elements obtained in one operation.
-
-    The most efficient usage pattern is: specify `batch_size` at initiation to be the batch size
-    of intended future use, and iterate by batches without specifying `batch_size` (hence
-    the same `batch_size` specified to `__init__` will be used).
+    One possible usage pattern:
 
         mylist = Biglist(path=mypath, batch_size=1000)
         ...
@@ -65,22 +59,16 @@ class Biglist:
         for batch in mylist.batches():
             ... # process `batch`
     '''
-    def __init__(self, path: str = None, batch_size: int = None, append: bool = False):
+    def __init__(self, path: str = None, batch_size: int = None):
         '''
         `path`: absolute path to a directory where data for the list will be stored.
             If the directory is not empty, it must be a directory that was created previously by
             `Biglist`.
 
-            If not specified, the whole list stays in memory and is never written to disk.
-            It's not unlike a regular `list`.
-            This usecase defeats the purpose of this class, although it should work.
+            If not specified, a temporary directory is used and deleted when the program terminates.
 
         `batch_size`: number of list elements contained in the in-memory buffer and
             one on-disk file (multiple files will be created as needed).
-
-        `append`: if `path` is not empty, it must be a directory that was previously operated
-            by `Biglist`; moreover, `append` must be `True`, indicating the caller intentionally
-            opens an existing list for reading and extending.
         '''
         self._path = path
         self._buffer_cap = batch_size
@@ -92,12 +80,14 @@ class Biglist:
         self._append_buffer = []
         self._len = 0
 
+        if self._buffer_cap is not None:
+            assert self._buffer_cap > 0
+
         if not self._path:
-            if batch_size is None:
-                self._buffer_cap = -1
-            else:
-                raise ValueError('`batch_size` should not be specified when `path` is missing')
-            return
+            self._path = tempfile.mkdtemp()
+            self._use_temp_path = True
+        else:
+            self._use_temp_path = False
 
         assert self._path.startswith('/')
         self._info_file = os.path.join(self._path, 'info.pickle')
@@ -106,11 +96,8 @@ class Biglist:
         if os.path.isdir(self._path):
             z = os.listdir(self._path)
             if z:
-                if not append:
-                    raise ZpzError(f"path '{self._path}' is not empty")
-                if (not os.path.isfile(self._info_file)
-                    or not os.path.isdir(self._store_dir)):
-                    raise ZpzError(f"path '{self._path}' is not empty and is not a valid {self.__class__.__name__} folder")
+                if (not os.path.isfile(self._info_file) or not os.path.isdir(self._store_dir)):
+                    raise ZpzError(f"path '{self._path}' is not empty but is not a valid {self.__class__.__name__} folder")
                 info = pickle.load(open(self._info_file, 'rb'))
                 self._file_lengths = info['file_lengths']
                 if self._buffer_cap is None:
@@ -122,11 +109,15 @@ class Biglist:
                     if self._file_lengths[-1] < self._buffer_cap:
                         fname = os.path.join(self._store_dir, str(len(self._file_lengths) - 1) + '.pickle')
                         self._append_buffer = pickle.load(open(fname, 'rb'))
-                        os.remove(fname)
+                        # Note: do not delete the file named `fname`.
+                        # In `flush`, overwrite this file if it exists.
+                        # If this object is created only to read existing data,
+                        # then the user will not call `flush` after use.
+                        # By keeping the original file named `fname`,
+                        # data is not lost.
                         self._file_lengths.pop()
 
                 self._len = sum(self._file_lengths) + len(self._append_buffer)
-                self._cum_file_lengths = [0]
                 for n in self._file_lengths:
                     self._cum_file_lengths.append(self._cum_file_lengths[-1] + n)
             else:
@@ -146,15 +137,25 @@ class Biglist:
         so that the object is as if upon `__init__` with an empty directory pointed to
         by `path`.
         '''
-        if self._path:
-            rmtree(self._path)
-            os.makedirs(self._store_dir)
+        rmtree(self._path)
+        os.makedirs(self._store_dir)
         self._file_lengths = []
         self._cum_file_lengths = [0]
         self._read_buffer = None
         self._read_buffer_file_idx = None
         self._append_buffer = []
         self._len = 0
+
+    def destroy(self) -> None:
+        '''
+        After this method is called, this object is no longer usable.
+        '''
+        self.clear()
+        rmtree(self._path)
+
+    def __del__(self) -> None:
+        if self._use_temp_path:
+            self.destroy()
 
     @property
     def batch_size(self) -> int:
@@ -170,6 +171,10 @@ class Biglist:
 
         This is a guideline of the largest batch size to use.
         '''
+        from pympler import asizeof
+        # Import here because `max_batch_size` is expected to be used
+        # rarely, and on some systems this import issues a warning.
+
         size = asizeof.asizeof(x)  # in bytes
         return (((1024 * 1024 * 64) // size) // 100) * 100
 
@@ -189,7 +194,7 @@ class Biglist:
 
         self._append_buffer.append(x)
         self._len += 1
-        if self._buffer_cap > 0 and len(self._append_buffer) >= self._buffer_cap:
+        if len(self._append_buffer) >= self._buffer_cap:
             self.flush()
 
     def extend(self, x: Iterable) -> None:
@@ -197,13 +202,15 @@ class Biglist:
             self.append(v)
 
     def _load_file_to_buffer(self, idx: int):
-        self._read_buffer = pickle.load(open(
-            os.path.join(self._store_dir, str(idx) + '.pickle'), 'rb'))
+        fname = os.path.join(self._store_dir, str(idx) + '.pickle')
+        self._read_buffer = pickle.load(open(fname, 'rb'))
         self._read_buffer_file_idx = idx
 
     def _get_file_idx_for_item(self, idx: int) -> int:
         if idx >= self._cum_file_lengths[-1]:
             return len(self._file_lengths)
+            # This suggests the requested element at index `idx`
+            # resides in `self._append_buffer`.
         if self._read_buffer_file_idx is None:
             for k in range(len(self._cum_file_lengths)):
                 if idx < self._cum_file_lengths[k]:
@@ -276,17 +283,13 @@ class Biglist:
 
         `batch_size`: if missing, an internal value (which is equal to the size of disk files)
         is used.
+
+        Returns a generator.
         '''
-        assert self._buffer_cap > 0
         if batch_size is None:
-            if self._path:
-                batch_size = self._buffer_cap
-            else:
-                batch_size = self._len
-        elif batch_size <= 0:
-            batch_size = self._len
+            batch_size = self._buffer_cap
         else:
-            batch_size = min(batch_size, self._len)
+            assert batch_size > 0
 
         n_done = 0
         while n_done < self._len:
@@ -297,7 +300,7 @@ class Biglist:
     def flush(self) -> None:
         '''
         Persist the content of the in-memory buffer to a disk file,
-        reset and the buffer, and update relevant book-keeping variables.
+        reset the buffer, and update relevant book-keeping variables.
 
         This method is called any time the size of the in-memory buffer 
         reaches `self.batch_size`. This happens w/o the user's intervention.
@@ -311,8 +314,6 @@ class Biglist:
         to the list *in this session*, meaning in this run of the program.
         '''
         if not self._append_buffer:
-            return
-        if not self._path:
             return
         file_name = os.path.join(self._store_dir, str(len(self._file_lengths)) + '.pickle')
         pickle.dump(self._append_buffer, open(file_name, 'wb'))
