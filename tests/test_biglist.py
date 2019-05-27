@@ -61,7 +61,7 @@ def test_numbers():
 
 
 def test_existing_numbers():
-    mylist = Biglist(PATH, append=True)
+    mylist = Biglist(PATH)
     data = list(range(len(mylist)))
 
     n = 0
