@@ -36,6 +36,57 @@ def slice_to_range(idx: slice, length: int):
         return range(start, stop, step)
 
 
+class BiglistView:
+    def __init__(self, biglist_, slice_=None):
+        self._biglist = biglist_
+        self._slice = slice_
+        self._len = None
+
+    def __len__(self) -> int:
+        return self._len
+
+    def __bool__(self) -> bool:
+        return self.__len__() > 0
+
+    def __getitem__(self, idx: Union[int, slice]):
+        pass
+
+    def __iter__(self):
+        pass
+
+    def batches(self, batch_size: int):
+        pass
+
+    def batches(self, batch_size: int):
+        '''
+        Iterate over batches of specified size.
+        In general, every batch has the same number of elements
+        except for the final batch, which contains however many elements
+        remain.
+
+        Suppose `obj` is an object of this class, then
+
+            for batch in obj.batches(100):
+                # `batch` is a list of up to 100 items
+                ...
+
+        `batch_size`: if missing, an internal value (which is equal to the size of disk files)
+        is used.
+
+        Returns a generator.
+        '''
+        if batch_size is None:
+            batch_size = self._buffer_cap
+        else:
+            assert batch_size > 0
+
+        n_done = 0
+        while n_done < self._len:
+            n_todo = min(self._len - n_done, batch_size)
+            yield self.__getitem__(slice(n_done, n_done + n_todo))
+            n_done += n_todo
+
+
 class Biglist:
     '''
     `Biglist` implements a single-machine, out-of-memory list, that is,
@@ -268,34 +319,9 @@ class Biglist:
         for i in range(self._len):
             yield self.__getitem__(i)
 
-    def batches(self, batch_size: int = None):
-        '''
-        Iterate over batches of specified size.
-        In general, every batch has the same number of elements
-        except for the final batch, which contains however many elements
-        remain.
-
-        Suppose `obj` is an object of this class, then
-
-            for batch in obj.batches(100):
-                # `batch` is a list of up to 100 items
-                ...
-
-        `batch_size`: if missing, an internal value (which is equal to the size of disk files)
-        is used.
-
-        Returns a generator.
-        '''
-        if batch_size is None:
-            batch_size = self._buffer_cap
-        else:
-            assert batch_size > 0
-
-        n_done = 0
-        while n_done < self._len:
-            n_todo = min(self._len - n_done, batch_size)
-            yield self.__getitem__(slice(n_done, n_done + n_todo))
-            n_done += n_todo
+    @property
+    def view(self) -> BiglistView:
+        return BiglistView(self)
 
     def flush(self) -> None:
         '''
