@@ -9,53 +9,81 @@ import warnings
 from .exceptions import ZpzError
 
 
-def slice_to_range(idx: slice, length: int):
-        start, stop, step = idx.start, idx.stop, idx.step
-        if step is None:
-            step = 1
-        else:
-            if step == 0:
-                raise ValueError('slice step cannot be zero')
+def slice_to_range(idx: slice, length: int) -> range:
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step is None:
+        step = 1
+    else:
+        if step == 0:
+            raise ValueError('slice step cannot be zero')
 
-        if step > 0:
-            if start is None:
-                start = 0
-            if stop is None:
-                stop = length
-        else:
-            if start is None:
-                start = length - 1
-            if stop is None:
-                stop = -1
+    if step > 0:
+        if start is None:
+            start = 0
+        if stop is None:
+            stop = length
+    else:
+        if start is None:
+            start = length - 1
+        if stop is None:
+            stop = -1
 
-        if start < 0:
-            start = length + start
-        if stop < 0:
-            stop = length + stop
+    if start < 0:
+        start = length + start
+    if stop < 0:
+        stop = length + stop
 
-        return range(start, stop, step)
+    return range(start, stop, step)
 
 
 class BiglistView:
-    def __init__(self, biglist_, slice_=None):
+    def __init__(self, biglist_, range_: range=None):
+        '''
+        An object of `BiglistView` is created by `Biglist` or `BiglistView`.
+        User should not attempt to create a `Biglistview` object directly.
+        '''
+        if range_ is None:
+            len_ = len(biglist_)
+            range_ = range(len_)
+        else:
+            len_ = len(range_)
         self._biglist = biglist_
-        self._slice = slice_
-        self._len = None
+        self._range = range_
+        self._len = len_
 
     def __len__(self) -> int:
-        return self._len
+        return len(self._range)
 
     def __bool__(self) -> bool:
-        return self.__len__() > 0
+        return len(self) > 0
+
+    def _getsingle(self, idx: int):
+        return self._biglist[self._range[idx]]
+
+    def _getslice(self, idx: slice):
+        idx = slice_to_range(idx, self._len)
+        start = self._range[idx.start]
+        stop = self._range[idx.stop]
+        step = idx.step * self._range.step
+        return BiglistView(self._biglist, range(start, stop, step))
 
     def __getitem__(self, idx: Union[int, slice]):
-        pass
+        '''
+        Element access by a single index or by slice.
+        Negative index and standard slice syntax both work as expected.
+
+        Sliced access returns a `BiglistView` object, which is iterable.
+        '''
+        if isinstance(idx, int):
+            return self._getsingle(idx)
+        elif isinstance(idx, slice):
+            return self._getslice(idx)
+        else:
+            raise TypeError(f"an integer or slice is expected")
 
     def __iter__(self):
-        pass
-
-    def batches(self, batch_size: int):
-        pass
+        for idx in self._range:
+            yield self._biglist[idx]
 
     def batches(self, batch_size: int):
         '''
@@ -70,19 +98,14 @@ class BiglistView:
                 # `batch` is a list of up to 100 items
                 ...
 
-        `batch_size`: if missing, an internal value (which is equal to the size of disk files)
-        is used.
-
         Returns a generator.
         '''
-        if batch_size is None:
-            batch_size = self._buffer_cap
-        else:
-            assert batch_size > 0
+        assert batch_size > 0
 
         n_done = 0
-        while n_done < self._len:
-            n_todo = min(self._len - n_done, batch_size)
+        N = len(self)
+        while n_done < N:
+            n_todo = min(N - n_done, batch_size)
             yield self.__getitem__(slice(n_done, n_done + n_todo))
             n_done += n_todo
 
@@ -277,40 +300,29 @@ class Biglist:
         else:
             return self._read_buffer_file_idx
 
-    def _getslice(self, idx: slice):
-        assert isinstance(idx, slice)
-        idx = slice_to_range(idx, self._len)
-        for i in idx:
-            yield self.__getitem__(i)
-
-    def __getitem__(self, idx: Union[int, slice]):
+    def __getitem__(self, idx: int):
         '''
-        Element access by single index or slice.
-        Negative index and all forms of slice work as expected.
-
-        Sliced access borrows the `slice` syntax but behaves a little differently:
-        it returns an generator, not a list; it does no copying whatsoever.
+        Element access by single index; negative index works as expected.
         '''
-        if isinstance(idx, int):
-            if idx >= self._len or idx < -self._len:
-                raise IndexError(f"index '{idx}' out of range'")
-            if idx < 0:
-                idx = self._len + idx
-            file_idx = self._get_file_idx_for_item(idx)
+        if not isinstance(idx, int):
+            raise ZpzError('A single integer index is expected. To use slice, check out `view`.')
 
-            if file_idx >= len(self._file_lengths):
-                return self._append_buffer[idx - self._cum_file_lengths[-1]]
+        if idx >= self._len or idx < -self._len:
+            raise IndexError(f"index '{idx}' out of range'")
+        if idx < 0:
+            idx = self._len + idx
+        file_idx = self._get_file_idx_for_item(idx)
 
-            if file_idx != self._read_buffer_file_idx:
-                self._load_file_to_buffer(file_idx)
+        if file_idx >= len(self._file_lengths):
+            return self._append_buffer[idx - self._cum_file_lengths[-1]]
 
-            n1 = self._cum_file_lengths[file_idx]
-            n2 = self._cum_file_lengths[file_idx + 1]
-            assert n1 <= idx < n2
-            return self._read_buffer[idx - n1]
-        else:
-            assert isinstance(idx, slice)
-            return self._getslice(idx)
+        if file_idx != self._read_buffer_file_idx:
+            self._load_file_to_buffer(file_idx)
+
+        n1 = self._cum_file_lengths[file_idx]
+        n2 = self._cum_file_lengths[file_idx + 1]
+        assert n1 <= idx < n2
+        return self._read_buffer[idx - n1]
 
     def __iter__(self):
         '''
