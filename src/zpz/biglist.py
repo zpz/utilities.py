@@ -9,63 +9,72 @@ import warnings
 from .exceptions import ZpzError
 
 
-def slice_to_range(idx: slice, length: int) -> range:
-    # `length`: length of sequence
+def slice_to_range(idx: slice, n: int) -> range:
+    '''
+    This functions takes a `slice`, combined with the length of the sequence,
+    to determine an explicit value for each of `start`, `stop`, and `step`,
+    and returns a `range` object.
 
-    if length < 1:
+    `n`: length of sequence
+    '''
+    if n < 1:
         return range(0)
 
     start, stop, step = idx.start, idx.stop, idx.step
     if step is None:
         step = 1
-    else:
-        if step == 0:
-            raise ValueError('slice step cannot be zero')
 
-    if step > 0:
+    if step == 0:
+        raise ValueError('slice step cannot be zero')
+    elif step > 0:
         if start is None:
             start = 0
         elif start < 0:
-            start = length + start
-            start = max(0, start)
+            start = max(0, n + start)
         if stop is None:
-            stop = length
+            stop = n
         elif stop < 0:
-            stop = length + stop
-            stop = max(stop, -1)
+            stop = n + stop
     else:
         if start is None:
-            start = length - 1
+            start = n - 1
         elif start < 0:
-            start = length + start
+            start = n + start
         if stop is None:
             stop = -1
         elif stop < 0:
-            stop = length + stop
-            if stop < 0:
-                stop = -1
+            stop = max(-1, n + stop)
 
     return range(start, stop, step)
 
 
-def regulate_range(x: range, n: int) -> range:
-    # `x`: like the output of `slice_to_range`---`x.start` and `x.stop`
-    # `n`: length of sequence
-    start, stop, step = x.start, x.stop, x.step
+def regulate_range(idx: range, n: int) -> range:
+    '''
+    This functions takes a `range` (such as one returned by `slice_to_range`),
+    combined with the length of the sequence,
+    to refine the values of `start`, `stop`, and `step`,
+    and returns a new `range` object.
+
+    `n`: length of sequence
+    '''
+    start, stop, step = idx.start, idx.stop, idx.step
     if step > 0:
         if start >= n:
-            return range(0)
-        start = max(start, 0)
-        if stop <= start:
-            return range(0)
-        stop = min(stop, n)
+            start, stop, step = 0, 0, 1
+        else:
+            start = max(start, 0)
+            stop = min(stop, n)
+            if stop <= start:
+                start, stop, step = 0, 0, 1
     else:
         if start < 0:
-            return range(0)
-        start = min(start, n -1)
-        if stop >= start:
-            return range(0)
-        stop = max(stop, -1)
+            start, stop, step = 0, 0, 1
+        else:
+            start = min(start, n -1)
+            stop = max(-1, stop)
+            if stop >= start:
+                start, stop, step = 0, 0, 1
+
     return range(start, stop, step)
 
 
@@ -102,29 +111,24 @@ class ListView:
         if isinstance(idx, int):
             return self._list[self._range[idx]]
         elif isinstance(idx, slice):
-            range_ = slice_to_range(idx, self._len)
-            start, stop, step = range_.start, range_.stop, range_.step
-            if step > 0:
-                if self._range.step > 0:
-                    start = self._range.start + self._range.step * start
-                    stop = self._range.start + self._range.step * stop
-                    step = self._range.step * stop
-                else:
-                    start = self._range.start + self._range.step * start
-                    stop = self._range.start + self._range.step * stop
-                    step = self._range.step * stop
-            TODO: in progress
+            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
+            if len(range_) == 0:
+                return ListView(self._list, range_)
 
-            print('')
-            print('')
-            print('idx:', idx)
-            print('self._range', self._range)
-            idx = slice_to_range(idx, self._len)
-            print('idx:', idx)
-            print(idx.start, idx.stop, idx.step)
-            start = self._range[idx.start]
-            stop = self._range[idx.stop]
-            step = idx.step * self._range.step
+            start, stop, step = range_.start, range_.stop, range_.step
+
+            start = self._range[start]
+            step = self._range.step * step
+
+            if stop >= 0:
+                stop = self._range.start + self._range.step * stop
+            else:
+                assert stop == -1 and range_.step < 0
+                if self._range.step > 0:
+                    stop = self._range.start - 1
+                else:
+                    stop = self._range.start + 1
+
             return ListView(self._list, range(start, stop, step))
         else:
             raise TypeError(f"an integer or slice is expected")

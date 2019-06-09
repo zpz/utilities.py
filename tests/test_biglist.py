@@ -46,49 +46,42 @@ def test_existing_numbers():
 
     rmtree(PATH)
     
-    # assert mylist[3] == data[3]
-    # assert mylist[22] == data[22]
-    # assert mylist[-1] == data[-1]
 
-    # assert list(mylist.view[28:23]) == data[28:23]
-    # assert list(mylist.view[-8:]) == data[-8:]
-    # assert list(mylist.view[-3:-11:-1]) == data[-3:-11:-1]
-    # assert list(mylist.view[:6]) == data[:6]
+def _test_listview(datalv):
+    data = list(range(20))
+    assert list(datalv) == data
 
-    # n = 0
-    # for batch in mylist.view.batches():
-    #     batch = list(batch)
-    #     assert list(batch) == data[n : (n+5)]
-    #     n += 5
+    assert datalv[8] == data[8]
+    assert datalv[17] == data[17]
 
-    # n = 0
-    # for batch in mylist.view.batches(3):
-    #     assert list(batch) == data[n : (n+3)]
-    #     n += 3
+    lv = datalv[:9]
+    assert isinstance(lv, ListView)
+    assert list(lv) == data[:9]
+    assert lv[-1] == data[8]
+    assert lv[3] == data[3]
 
-    # n = 0
-    # for batch in mylist.view.batches(7):
-    #     assert list(batch) == data[n : (n+7)]
-    #     n += 7
+    lv = lv[:2:-2]
+    assert list(lv) == data[8:2:-2]
 
-    # n = 0
-    # for batch in mylist.view.batches(57):
-    #     assert list(batch) == data[n : (n+57)]
-    #     n += 57
+    lv = datalv[10:17]
+    assert lv[3] == data[13]
+    assert list(lv[3:6]) == data[13:16]
+    assert list(lv[-3:]) == data[14:17]
+    assert list(lv[::2]) == data[10:17:2]
+    assert list(lv) == data[10:17]
 
-
+    lv = datalv[::-2]
+    assert list(lv) == data[::-2]
+    assert list(lv[:3]) == [data[-1], data[-3], data[-5]]
+    assert lv[2] == data[-5]
+    assert list(lv[::-3]) == data[1::6]
 
 
+def test_listview():
+    _test_listview(ListView(list(range(20))))
 
 
-
-    # n = 0
-    # for batch in mylist.view.batches():
-    #     assert list(batch) == data[n : (n + mylist.batch_size)]
-    #     n += mylist.batch_size
-
-
-    # n = 0
-    # for batch in mylist.view.batches(3):
-    #     assert list(batch) == data[n : (n+3)]
-    #     n += 3
+def test_biglistview():
+    mylist = Biglist(batch_size=7)
+    mylist.extend(range(20))
+    _test_listview(mylist.view)
