@@ -60,6 +60,12 @@ def _test_listview(datalv):
     assert lv[-1] == data[8]
     assert lv[3] == data[3]
 
+    n = 0
+    for batch in lv.batches(4):
+        k = len(batch)
+        assert list(batch) == data[n : (n+k)]
+        n += k
+
     lv = lv[:2:-2]
     assert list(lv) == data[8:2:-2]
 
@@ -75,6 +81,12 @@ def _test_listview(datalv):
     assert list(lv[:3]) == [data[-1], data[-3], data[-5]]
     assert lv[2] == data[-5]
     assert list(lv[::-3]) == data[1::6]
+
+    n = 19
+    for batch in lv.batches(3):
+        k = len(batch)
+        assert list(batch) == data[n : (n - 2*k + 1) : -2]
+        n = n - k*2
 
 
 def test_listview():
