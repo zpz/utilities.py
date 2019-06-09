@@ -3,13 +3,18 @@ import os.path
 import pickle
 from shutil import rmtree
 import tempfile
-from typing import Union, Iterable
+from typing import Union, Iterable, Sequence
 import warnings
 
 from .exceptions import ZpzError
 
 
 def slice_to_range(idx: slice, length: int) -> range:
+    # `length`: length of sequence
+
+    if length < 1:
+        return range(0)
+
     start, stop, step = idx.start, idx.stop, idx.step
     if step is None:
         step = 1
@@ -20,34 +25,64 @@ def slice_to_range(idx: slice, length: int) -> range:
     if step > 0:
         if start is None:
             start = 0
+        elif start < 0:
+            start = length + start
+            start = max(0, start)
         if stop is None:
             stop = length
+        elif stop < 0:
+            stop = length + stop
+            stop = max(stop, -1)
     else:
         if start is None:
             start = length - 1
+        elif start < 0:
+            start = length + start
         if stop is None:
             stop = -1
-
-    if start < 0:
-        start = length + start
-    if stop < 0:
-        stop = length + stop
+        elif stop < 0:
+            stop = length + stop
+            if stop < 0:
+                stop = -1
 
     return range(start, stop, step)
 
 
-class BiglistView:
-    def __init__(self, biglist_, range_: range=None):
+def regulate_range(x: range, n: int) -> range:
+    # `x`: like the output of `slice_to_range`---`x.start` and `x.stop`
+    # `n`: length of sequence
+    start, stop, step = x.start, x.stop, x.step
+    if step > 0:
+        if start >= n:
+            return range(0)
+        start = max(start, 0)
+        if stop <= start:
+            return range(0)
+        stop = min(stop, n)
+    else:
+        if start < 0:
+            return range(0)
+        start = min(start, n -1)
+        if stop >= start:
+            return range(0)
+        stop = max(stop, -1)
+    return range(start, stop, step)
+
+
+class ListView:
+    def __init__(self, list_: Sequence, range_: range=None):
         '''
-        An object of `BiglistView` is created by `Biglist` or `BiglistView`.
-        User should not attempt to create a `Biglistview` object directly.
+        An object of `ListView` is created by `Biglist` or `ListView`.
+        User should not attempt to create an object of this class directly.
         '''
         if range_ is None:
-            len_ = len(biglist_)
+            len_ = len(list_)
             range_ = range(len_)
         else:
+            n = len(list_)
+            range_ = regulate_range(range_, n)
             len_ = len(range_)
-        self._biglist = biglist_
+        self._list = list_
         self._range = range_
         self._len = len_
 
@@ -57,16 +92,6 @@ class BiglistView:
     def __bool__(self) -> bool:
         return len(self) > 0
 
-    def _getsingle(self, idx: int):
-        return self._biglist[self._range[idx]]
-
-    def _getslice(self, idx: slice):
-        idx = slice_to_range(idx, self._len)
-        start = self._range[idx.start]
-        stop = self._range[idx.stop]
-        step = idx.step * self._range.step
-        return BiglistView(self._biglist, range(start, stop, step))
-
     def __getitem__(self, idx: Union[int, slice]):
         '''
         Element access by a single index or by slice.
@@ -75,15 +100,38 @@ class BiglistView:
         Sliced access returns a `BiglistView` object, which is iterable.
         '''
         if isinstance(idx, int):
-            return self._getsingle(idx)
+            return self._list[self._range[idx]]
         elif isinstance(idx, slice):
-            return self._getslice(idx)
+            range_ = slice_to_range(idx, self._len)
+            start, stop, step = range_.start, range_.stop, range_.step
+            if step > 0:
+                if self._range.step > 0:
+                    start = self._range.start + self._range.step * start
+                    stop = self._range.start + self._range.step * stop
+                    step = self._range.step * stop
+                else:
+                    start = self._range.start + self._range.step * start
+                    stop = self._range.start + self._range.step * stop
+                    step = self._range.step * stop
+            TODO: in progress
+
+            print('')
+            print('')
+            print('idx:', idx)
+            print('self._range', self._range)
+            idx = slice_to_range(idx, self._len)
+            print('idx:', idx)
+            print(idx.start, idx.stop, idx.step)
+            start = self._range[idx.start]
+            stop = self._range[idx.stop]
+            step = idx.step * self._range.step
+            return ListView(self._list, range(start, stop, step))
         else:
             raise TypeError(f"an integer or slice is expected")
 
     def __iter__(self):
         for idx in self._range:
-            yield self._biglist[idx]
+            yield self._list[idx]
 
     def batches(self, batch_size: int):
         '''
@@ -106,32 +154,28 @@ class BiglistView:
         N = len(self)
         while n_done < N:
             n_todo = min(N - n_done, batch_size)
-            yield self.__getitem__(slice(n_done, n_done + n_todo))
+            yield self[n_done : (n_done + n_todo)]
             n_done += n_todo
 
 
 class Biglist:
     '''
     `Biglist` implements a single-machine, out-of-memory list, that is,
-    the list can exceed the capacity of the memory, but can be stored on the hard drive
+    the list may exceed the capacity of the memory, but can be stored on the hard drive
     of the single machine.
 
     The list can be appended to via `append` and `extend`.
-    Elements can be accessed by single index, slice, and a single-element iterator or batch iterator.
-
     Existing elements can not be modified.
 
-    One possible usage pattern:
+    Single elements can be accessed via the standard `[index]` syntax.
+    The object can be iterated over to walk through the elements one by one.
 
-        mylist = Biglist(path=mypath, batch_size=1000)
-        ...
-        mylist.extend([...])
-        mylist.extend([...])
-        ...
-        mylist.flush()
+    Accessing a range of elements by the slicing syntax `[start:stop:step]` is not supported.
+    This is because that, by convention, slicing should return an object of the same type,
+    but that is not possible with `Biglist`.
 
-        for batch in mylist.batches():
-            ... # process `batch`
+    However, the property `view` returns a `BiglistView`, which supports indexing,
+    slicing, iterating, and iterating by batches.
     '''
     def __init__(self, path: str = None, batch_size: int = None):
         '''
@@ -332,8 +376,8 @@ class Biglist:
             yield self.__getitem__(i)
 
     @property
-    def view(self) -> BiglistView:
-        return BiglistView(self)
+    def view(self) -> ListView:
+        return ListView(self)
 
     def flush(self) -> None:
         '''
