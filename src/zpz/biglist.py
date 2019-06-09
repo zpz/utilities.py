@@ -3,61 +3,183 @@ import os.path
 import pickle
 from shutil import rmtree
 import tempfile
-from typing import Union, Iterable
+from typing import Union, Iterable, Sequence
 import warnings
 
 from .exceptions import ZpzError
 
 
-def slice_to_range(idx: slice, length: int):
-        start, stop, step = idx.start, idx.stop, idx.step
-        if step is None:
-            step = 1
-        else:
-            if step == 0:
-                raise ValueError('slice step cannot be zero')
+def slice_to_range(idx: slice, n: int) -> range:
+    '''
+    This functions takes a `slice`, combined with the length of the sequence,
+    to determine an explicit value for each of `start`, `stop`, and `step`,
+    and returns a `range` object.
 
-        if step > 0:
-            if start is None:
-                start = 0
-            if stop is None:
-                stop = length
-        else:
-            if start is None:
-                start = length - 1
-            if stop is None:
-                stop = -1
+    `n`: length of sequence
+    '''
+    if n < 1:
+        return range(0)
 
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step is None:
+        step = 1
+
+    if step == 0:
+        raise ValueError('slice step cannot be zero')
+    elif step > 0:
+        if start is None:
+            start = 0
+        elif start < 0:
+            start = max(0, n + start)
+        if stop is None:
+            stop = n
+        elif stop < 0:
+            stop = n + stop
+    else:
+        if start is None:
+            start = n - 1
+        elif start < 0:
+            start = n + start
+        if stop is None:
+            stop = -1
+        elif stop < 0:
+            stop = max(-1, n + stop)
+
+    return range(start, stop, step)
+
+
+def regulate_range(idx: range, n: int) -> range:
+    '''
+    This functions takes a `range` (such as one returned by `slice_to_range`),
+    combined with the length of the sequence,
+    to refine the values of `start`, `stop`, and `step`,
+    and returns a new `range` object.
+
+    `n`: length of sequence
+    '''
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step > 0:
+        if start >= n:
+            start, stop, step = 0, 0, 1
+        else:
+            start = max(start, 0)
+            stop = min(stop, n)
+            if stop <= start:
+                start, stop, step = 0, 0, 1
+    else:
         if start < 0:
-            start = length + start
-        if stop < 0:
-            stop = length + stop
+            start, stop, step = 0, 0, 1
+        else:
+            start = min(start, n -1)
+            stop = max(-1, stop)
+            if stop >= start:
+                start, stop, step = 0, 0, 1
 
-        return range(start, stop, step)
+    return range(start, stop, step)
+
+
+class ListView:
+    def __init__(self, list_: Sequence, range_: range=None):
+        '''
+        An object of `ListView` is created by `Biglist` or `ListView`.
+        User should not attempt to create an object of this class directly.
+        '''
+        if range_ is None:
+            len_ = len(list_)
+            range_ = range(len_)
+        else:
+            n = len(list_)
+            range_ = regulate_range(range_, n)
+            len_ = len(range_)
+        self._list = list_
+        self._range = range_
+        self._len = len_
+
+    def __len__(self) -> int:
+        return len(self._range)
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+    def __getitem__(self, idx: Union[int, slice]):
+        '''
+        Element access by a single index or by slice.
+        Negative index and standard slice syntax both work as expected.
+
+        Sliced access returns a `BiglistView` object, which is iterable.
+        '''
+        if isinstance(idx, int):
+            return self._list[self._range[idx]]
+        elif isinstance(idx, slice):
+            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
+            if len(range_) == 0:
+                return ListView(self._list, range_)
+
+            start, stop, step = range_.start, range_.stop, range_.step
+
+            start = self._range[start]
+            step = self._range.step * step
+
+            if stop >= 0:
+                stop = self._range.start + self._range.step * stop
+            else:
+                assert stop == -1 and range_.step < 0
+                if self._range.step > 0:
+                    stop = self._range.start - 1
+                else:
+                    stop = self._range.start + 1
+
+            return ListView(self._list, range(start, stop, step))
+        else:
+            raise TypeError(f"an integer or slice is expected")
+
+    def __iter__(self):
+        for idx in self._range:
+            yield self._list[idx]
+
+    def batches(self, batch_size: int):
+        '''
+        Iterate over batches of specified size.
+        In general, every batch has the same number of elements
+        except for the final batch, which contains however many elements
+        remain.
+
+        Suppose `obj` is an object of this class, then
+
+            for batch in obj.batches(100):
+                # `batch` is a list of up to 100 items
+                ...
+
+        Returns a generator.
+        '''
+        assert batch_size > 0
+
+        n_done = 0
+        N = len(self)
+        while n_done < N:
+            n_todo = min(N - n_done, batch_size)
+            yield self[n_done : (n_done + n_todo)]
+            n_done += n_todo
 
 
 class Biglist:
     '''
     `Biglist` implements a single-machine, out-of-memory list, that is,
-    the list can exceed the capacity of the memory, but can be stored on the hard drive
+    the list may exceed the capacity of the memory, but can be stored on the hard drive
     of the single machine.
 
     The list can be appended to via `append` and `extend`.
-    Elements can be accessed by single index, slice, and a single-element iterator or batch iterator.
-
     Existing elements can not be modified.
 
-    One possible usage pattern:
+    Single elements can be accessed via the standard `[index]` syntax.
+    The object can be iterated over to walk through the elements one by one.
 
-        mylist = Biglist(path=mypath, batch_size=1000)
-        ...
-        mylist.extend([...])
-        mylist.extend([...])
-        ...
-        mylist.flush()
+    Accessing a range of elements by the slicing syntax `[start:stop:step]` is not supported.
+    This is because that, by convention, slicing should return an object of the same type,
+    but that is not possible with `Biglist`.
 
-        for batch in mylist.batches():
-            ... # process `batch`
+    However, the property `view` returns a `BiglistView`, which supports indexing,
+    slicing, iterating, and iterating by batches.
     '''
     def __init__(self, path: str = None, batch_size: int = None):
         '''
@@ -226,40 +348,29 @@ class Biglist:
         else:
             return self._read_buffer_file_idx
 
-    def _getslice(self, idx: slice):
-        assert isinstance(idx, slice)
-        idx = slice_to_range(idx, self._len)
-        for i in idx:
-            yield self.__getitem__(i)
-
-    def __getitem__(self, idx: Union[int, slice]):
+    def __getitem__(self, idx: int):
         '''
-        Element access by single index or slice.
-        Negative index and all forms of slice work as expected.
-
-        Sliced access borrows the `slice` syntax but behaves a little differently:
-        it returns an generator, not a list; it does no copying whatsoever.
+        Element access by single index; negative index works as expected.
         '''
-        if isinstance(idx, int):
-            if idx >= self._len or idx < -self._len:
-                raise IndexError(f"index '{idx}' out of range'")
-            if idx < 0:
-                idx = self._len + idx
-            file_idx = self._get_file_idx_for_item(idx)
+        if not isinstance(idx, int):
+            raise ZpzError('A single integer index is expected. To use slice, check out `view`.')
 
-            if file_idx >= len(self._file_lengths):
-                return self._append_buffer[idx - self._cum_file_lengths[-1]]
+        if idx >= self._len or idx < -self._len:
+            raise IndexError(f"index '{idx}' out of range'")
+        if idx < 0:
+            idx = self._len + idx
+        file_idx = self._get_file_idx_for_item(idx)
 
-            if file_idx != self._read_buffer_file_idx:
-                self._load_file_to_buffer(file_idx)
+        if file_idx >= len(self._file_lengths):
+            return self._append_buffer[idx - self._cum_file_lengths[-1]]
 
-            n1 = self._cum_file_lengths[file_idx]
-            n2 = self._cum_file_lengths[file_idx + 1]
-            assert n1 <= idx < n2
-            return self._read_buffer[idx - n1]
-        else:
-            assert isinstance(idx, slice)
-            return self._getslice(idx)
+        if file_idx != self._read_buffer_file_idx:
+            self._load_file_to_buffer(file_idx)
+
+        n1 = self._cum_file_lengths[file_idx]
+        n2 = self._cum_file_lengths[file_idx + 1]
+        assert n1 <= idx < n2
+        return self._read_buffer[idx - n1]
 
     def __iter__(self):
         '''
@@ -268,34 +379,9 @@ class Biglist:
         for i in range(self._len):
             yield self.__getitem__(i)
 
-    def batches(self, batch_size: int = None):
-        '''
-        Iterate over batches of specified size.
-        In general, every batch has the same number of elements
-        except for the final batch, which contains however many elements
-        remain.
-
-        Suppose `obj` is an object of this class, then
-
-            for batch in obj.batches(100):
-                # `batch` is a list of up to 100 items
-                ...
-
-        `batch_size`: if missing, an internal value (which is equal to the size of disk files)
-        is used.
-
-        Returns a generator.
-        '''
-        if batch_size is None:
-            batch_size = self._buffer_cap
-        else:
-            assert batch_size > 0
-
-        n_done = 0
-        while n_done < self._len:
-            n_todo = min(self._len - n_done, batch_size)
-            yield self.__getitem__(slice(n_done, n_done + n_todo))
-            n_done += n_todo
+    @property
+    def view(self) -> ListView:
+        return ListView(self)
 
     def flush(self) -> None:
         '''
