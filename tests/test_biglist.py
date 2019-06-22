@@ -3,7 +3,7 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, ListView
+from zpz.biglist import Biglist, ListView, ChainListView
 from zpz.exceptions import ZpzError
 
 
@@ -60,12 +60,6 @@ def _test_listview(datalv):
     assert lv[-1] == data[8]
     assert lv[3] == data[3]
 
-    n = 0
-    for batch in lv.batches(4):
-        k = len(batch)
-        assert list(batch) == data[n : (n+k)]
-        n += k
-
     lv = lv[:2:-2]
     assert list(lv) == data[8:2:-2]
 
@@ -82,12 +76,6 @@ def _test_listview(datalv):
     assert lv[2] == data[-5]
     assert list(lv[::-3]) == data[1::6]
 
-    n = 19
-    for batch in lv.batches(3):
-        k = len(batch)
-        assert list(batch) == data[n : (n - 2*k + 1) : -2]
-        n = n - k*2
-
 
 def test_listview():
     _test_listview(ListView(list(range(20))))
@@ -97,3 +85,36 @@ def test_biglistview():
     mylist = Biglist(batch_size=7)
     mylist.extend(range(20))
     _test_listview(mylist.view)
+
+
+def test_chainlistview():
+    mylist1 = Biglist(batch_size=5)
+    mylist1.extend(range(0, 8))
+
+    mylist2 = Biglist(batch_size=5)
+    mylist2.extend(range(8, 18))
+
+    mylist3 = Biglist(batch_size=4)
+    mylist3.extend(range(18, 32))
+
+    mylist = ChainListView(mylist1.view, mylist2.view, mylist3.view)
+    data = list(range(32))
+
+    assert list(mylist) == data
+    assert mylist[12] == data[12]
+    assert mylist[17] == data[17]
+    assert mylist[-8] == data[-8]
+    assert list(mylist[:8]) == data[:8]
+    assert list(mylist[-6:]) == data[-6:]
+    assert list(mylist[2:30:3]) == data[2:30:3]
+    assert list(mylist[::-1]) == data[::-1]
+    assert list(mylist[-2:-9:-1]) == data[-2:-9:-1]
+    assert list(mylist[::-3]) == data[::-3]
+
+    yourlist = mylist[-2:-30:-3]
+    yourdata = data[-2:-30:-3]
+
+    assert list(yourdata) == yourdata
+    assert yourlist[3] == yourdata[3]
+    assert list(yourlist[2:20:4]) == yourdata[2:20:4]
+    assert list(yourlist[-2:-20:-3]) == yourdata[-2:-20:-3]

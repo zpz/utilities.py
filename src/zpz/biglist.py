@@ -9,157 +9,12 @@ import warnings
 from .exceptions import ZpzError
 
 
-def slice_to_range(idx: slice, n: int) -> range:
-    '''
-    This functions takes a `slice`, combined with the length of the sequence,
-    to determine an explicit value for each of `start`, `stop`, and `step`,
-    and returns a `range` object.
-
-    `n`: length of sequence
-    '''
-    if n < 1:
-        return range(0)
-
-    start, stop, step = idx.start, idx.stop, idx.step
-    if step is None:
-        step = 1
-
-    if step == 0:
-        raise ValueError('slice step cannot be zero')
-    elif step > 0:
-        if start is None:
-            start = 0
-        elif start < 0:
-            start = max(0, n + start)
-        if stop is None:
-            stop = n
-        elif stop < 0:
-            stop = n + stop
-    else:
-        if start is None:
-            start = n - 1
-        elif start < 0:
-            start = n + start
-        if stop is None:
-            stop = -1
-        elif stop < 0:
-            stop = max(-1, n + stop)
-
-    return range(start, stop, step)
-
-
-def regulate_range(idx: range, n: int) -> range:
-    '''
-    This functions takes a `range` (such as one returned by `slice_to_range`),
-    combined with the length of the sequence,
-    to refine the values of `start`, `stop`, and `step`,
-    and returns a new `range` object.
-
-    `n`: length of sequence
-    '''
-    start, stop, step = idx.start, idx.stop, idx.step
-    if step > 0:
-        if start >= n:
-            start, stop, step = 0, 0, 1
-        else:
-            start = max(start, 0)
-            stop = min(stop, n)
-            if stop <= start:
-                start, stop, step = 0, 0, 1
-    else:
-        if start < 0:
-            start, stop, step = 0, 0, 1
-        else:
-            start = min(start, n -1)
-            stop = max(-1, stop)
-            if stop >= start:
-                start, stop, step = 0, 0, 1
-
-    return range(start, stop, step)
-
-
-class ListView:
-    def __init__(self, list_: Sequence, range_: range=None):
-        '''
-        An object of `ListView` is created by `Biglist` or `ListView`.
-        User should not attempt to create an object of this class directly.
-        '''
-        if range_ is None:
-            len_ = len(list_)
-            range_ = range(len_)
-        else:
-            n = len(list_)
-            range_ = regulate_range(range_, n)
-            len_ = len(range_)
-        self._list = list_
-        self._range = range_
-        self._len = len_
-
-    def __len__(self) -> int:
-        return len(self._range)
-
-    def __bool__(self) -> bool:
-        return len(self) > 0
-
-    def __getitem__(self, idx: Union[int, slice]):
-        '''
-        Element access by a single index or by slice.
-        Negative index and standard slice syntax both work as expected.
-
-        Sliced access returns a `BiglistView` object, which is iterable.
-        '''
-        if isinstance(idx, int):
-            return self._list[self._range[idx]]
-        elif isinstance(idx, slice):
-            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
-            if len(range_) == 0:
-                return ListView(self._list, range_)
-
-            start, stop, step = range_.start, range_.stop, range_.step
-
-            start = self._range[start]
-            step = self._range.step * step
-
-            if stop >= 0:
-                stop = self._range.start + self._range.step * stop
-            else:
-                assert stop == -1 and range_.step < 0
-                if self._range.step > 0:
-                    stop = self._range.start - 1
-                else:
-                    stop = self._range.start + 1
-
-            return ListView(self._list, range(start, stop, step))
-        else:
-            raise TypeError(f"an integer or slice is expected")
-
-    def __iter__(self):
-        for idx in self._range:
-            yield self._list[idx]
-
-    def batches(self, batch_size: int):
-        '''
-        Iterate over batches of specified size.
-        In general, every batch has the same number of elements
-        except for the final batch, which contains however many elements
-        remain.
-
-        Suppose `obj` is an object of this class, then
-
-            for batch in obj.batches(100):
-                # `batch` is a list of up to 100 items
-                ...
-
-        Returns a generator.
-        '''
-        assert batch_size > 0
-
-        n_done = 0
-        N = len(self)
-        while n_done < N:
-            n_todo = min(N - n_done, batch_size)
-            yield self[n_done : (n_done + n_todo)]
-            n_done += n_todo
+def regulate_index(idx, length) -> int:
+    if idx >= length or idx < -length:
+        raise IndexError(f"index '{idx}' out of range'")
+    if idx < 0:
+        idx = length + idx
+    return idx
 
 
 class Biglist:
@@ -355,10 +210,7 @@ class Biglist:
         if not isinstance(idx, int):
             raise ZpzError('A single integer index is expected. To use slice, check out `view`.')
 
-        if idx >= self._len or idx < -self._len:
-            raise IndexError(f"index '{idx}' out of range'")
-        if idx < 0:
-            idx = self._len + idx
+        idx = regulate_index(idx, self._len)
         file_idx = self._get_file_idx_for_item(idx)
 
         if file_idx >= len(self._file_lengths):
@@ -380,7 +232,7 @@ class Biglist:
             yield self.__getitem__(i)
 
     @property
-    def view(self) -> ListView:
+    def view(self) -> 'ListView':
         return ListView(self)
 
     def flush(self) -> None:
@@ -408,3 +260,218 @@ class Biglist:
         pickle.dump({'file_lengths': self._file_lengths, 'buffer_cap': self._buffer_cap},
             open(self._info_file, 'wb'))
         self._append_buffer = []
+
+
+def slice_to_range(idx: slice, n: int) -> range:
+    '''
+    This functions takes a `slice`, combined with the length of the sequence,
+    to determine an explicit value for each of `start`, `stop`, and `step`,
+    and returns a `range` object.
+
+    `n`: length of sequence
+    '''
+    if n < 1:
+        return range(0)
+
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step is None:
+        step = 1
+
+    if step == 0:
+        raise ValueError('slice step cannot be zero')
+    elif step > 0:
+        if start is None:
+            start = 0
+        elif start < 0:
+            start = max(0, n + start)
+        if stop is None:
+            stop = n
+        elif stop < 0:
+            stop = n + stop
+    else:
+        if start is None:
+            start = n - 1
+        elif start < 0:
+            start = n + start
+        if stop is None:
+            stop = -1
+        elif stop < 0:
+            stop = max(-1, n + stop)
+
+    return range(start, stop, step)
+
+
+def regulate_range(idx: range, n: int) -> range:
+    '''
+    This functions takes a `range` (such as one returned by `slice_to_range`),
+    combined with the length of the sequence,
+    to refine the values of `start`, `stop`, and `step`,
+    and returns a new `range` object.
+
+    `n`: length of sequence
+    '''
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step > 0:
+        if start >= n:
+            start, stop, step = 0, 0, 1
+        else:
+            start = max(start, 0)
+            stop = min(stop, n)
+            if stop <= start:
+                start, stop, step = 0, 0, 1
+    else:
+        if start < 0:
+            start, stop, step = 0, 0, 1
+        else:
+            start = min(start, n -1)
+            stop = max(-1, stop)
+            if stop >= start:
+                start, stop, step = 0, 0, 1
+
+    return range(start, stop, step)
+
+
+class ListView:
+    def __init__(self, list_: Sequence, range_: range=None):
+        '''
+        An object of `ListView` is created by `Biglist` or `ListView`.
+        User should not attempt to create an object of this class directly.
+        '''
+        if range_ is None:
+            len_ = len(list_)
+            range_ = range(len_)
+        else:
+            n = len(list_)
+            range_ = regulate_range(range_, n)
+            len_ = len(range_)
+        self._list = list_
+        self._range = range_
+        self._len = len_
+
+    def __len__(self) -> int:
+        return len(self._range)
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+    def __getitem__(self, idx: Union[int, slice]):
+        '''
+        Element access by a single index or by slice.
+        Negative index and standard slice syntax both work as expected.
+
+        Sliced access returns a `BiglistView` object, which is iterable.
+        '''
+        if isinstance(idx, int):
+            return self._list[self._range[idx]]
+        elif isinstance(idx, slice):
+            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
+            if len(range_) == 0:
+                return ListView([])
+
+            start, stop, step = range_.start, range_.stop, range_.step
+
+            start = self._range[start]
+            step = self._range.step * step
+
+            if stop >= 0:
+                stop = self._range.start + self._range.step * stop
+            else:
+                assert stop == -1 and range_.step < 0
+                if self._range.step > 0:
+                    stop = self._range.start - 1
+                else:
+                    stop = self._range.start + 1
+
+            return ListView(self._list, range(start, stop, step))
+        else:
+            raise TypeError(f"an integer or slice is expected")
+
+    def __iter__(self):
+        for idx in self._range:
+            yield self._list[idx]
+
+    @property
+    def view(self) -> 'self':
+        return self
+
+
+class ChainListView:
+    def __init__(self, *views: Iterable[Sequence]):
+        self._views = views
+        self._views_len = [len(v) for v in views]
+        self._len = sum(self._views_len)
+
+    def __len__(self) -> int:
+        return self._len
+
+    def __bool__(self) -> bool:
+        return self._len > 0
+
+    def __getitem__(self, idx):
+        if isinstance(idx, int):
+            idx = regulate_index(idx, self._len)
+            for v, k in zip(self._views, self._views_len):
+                if idx >= k:
+                    idx -= k
+                else:
+                    return v[idx]
+        elif isinstance(idx, slice):
+            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
+            if len(range_) == 0:
+                return ChainListView([])
+
+            start, stop, step = range_.start, range_.stop, range_.step
+
+            views = []
+            if step > 0:
+                for v, k in zip(self._views, self._views_len):
+                    if start >= k:
+                        start -= k
+                        stop -= k
+                    else:
+                        if stop <= k:
+                            views.append(v[start:stop:step])
+                            break
+                        else:
+                            views.append(v[start::step])
+                            newstart = start + len(views[-1]) * step
+                            assert newstart >= k
+                            if newstart >= stop:
+                                break
+                            start = newstart - k
+                            stop = stop - k
+            else:
+                start = start - self._len
+                stop = stop - self._len
+
+                for v, k in zip(reversed(self._views), reversed(self._views_len)):
+                    if -start > k:
+                        start += k
+                        stop += k
+                    else:
+                        if -stop <= k + 1:
+                            views.append(v[start:stop:step])
+                            break
+                        else:
+                            views.append(v[start::step])
+                            newstart = start + len(views[-1]) * step
+                            assert -newstart > k
+                            if newstart <= stop:
+                                break
+                            start = newstart + k
+                            stop = stop + k
+
+            newview = ChainListView(*views)
+            assert len(newview) == len(range_)
+            return newview
+
+        else:
+            raise TypeError(f"an integer or slice is expected")
+
+    def __iter__(self):
+        for i in range(self._len):
+            yield self.__getitem__(i)
+
+    @property
+    def view(self) -> 'self':
+        return self
