@@ -3,7 +3,8 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, ListView, ChainListView
+from zpz.biglist import Biglist, ListView, ChainListView, stratified_split
+from zpz.path import make_temp_dir
 from zpz.exceptions import ZpzError
 
 
@@ -85,6 +86,81 @@ def test_biglistview():
     mylist = Biglist(batch_size=7)
     mylist.extend(range(20))
     _test_listview(mylist.view)
+
+
+def test_move():
+    bl = Biglist(batch_size=4)
+    bl.extend(range(17))
+
+    newpath = make_temp_dir()
+    rmtree(newpath)
+    bl.move(newpath)
+
+    assert bl.path == newpath
+    assert list(bl) == list(range(17))
+
+    bl.destroy()
+
+
+def test_split():
+    input = [
+        2,  # 2   0
+        3,  # 0   0
+        5,  # 2   0
+        2,  # 2   0
+        4,  # 1   0
+        7,  # 1   0
+        5,  # 2   0
+        8,  # 2   0
+        3,  # 0   0
+        4,  # 1   0
+        4,  # 1   0
+        6,  # 0   0
+        7,  # 1   1
+        8,  # 2   0
+        3,  # 0   0
+        2,  # 2   1
+        5,  # 2   1
+        1,  # 1   1
+        7,  # 1
+        8,  # 2   1
+        6,  # 0   1
+        3,  # 0   1
+        2,  # 2
+        12, # 0
+        20, # 2
+        18, # 0
+        17, # 2
+        16, # 1
+        19, # 1
+    ]
+    # length 29.
+    # key: x % 3
+    # categories: 0 (8), 1 (9), 2 (12)
+
+    # test 1:
+    #   first split collects two 0's, two 1's, three 2's.
+    expected = [
+        [2, 3, 5, 2, 4, 7, 3],
+        [5, 8, 4, 4, 6, 7, 8, 3, 2, 5, 1, 7, 8, 6, 3, 2, 12, 20, 18, 17, 16, 19],
+    ]
+    result = stratified_split(input, split_frac=0.3, key=lambda x: x%3, min_split_size=1, out_cls=list)
+    
+    assert list(result[0]) == expected[0]
+    assert list(result[1]) == expected[1]
+
+    # test 2:
+    #  first split collects four 0's, four 1's, six 2's.
+    #  second split collects two 0's, two 1's, three 2's.
+    expected = [
+        [2, 3, 5, 2, 4, 7, 5, 8, 3, 4, 4, 6, 8, 3],
+        [7, 2, 5, 1, 8, 6, 3],
+        [7, 2, 12, 20, 18, 17, 16, 19],
+    ]
+    result = stratified_split(input, split_frac=[0.5, 0.3], key=lambda x: x%3, min_split_size=1, out_cls=list)
+    assert list(result[0]) == expected[0]
+    assert list(result[1]) == expected[1]
+    assert list(result[2]) == expected[2]
 
 
 def test_chainlistview():

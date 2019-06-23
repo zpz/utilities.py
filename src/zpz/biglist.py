@@ -1,9 +1,10 @@
+from collections import defaultdict
 import os
 import os.path
 import pickle
-from shutil import rmtree
+import shutil
 import tempfile
-from typing import Union, Iterable, Sequence
+from typing import Union, Iterable, Sequence, List, Dict, TypeVar, Callable
 import warnings
 
 from .exceptions import ZpzError
@@ -67,8 +68,6 @@ class Biglist:
             self._use_temp_path = False
 
         assert self._path.startswith('/')
-        self._info_file = os.path.join(self._path, 'info.pickle')
-        self._store_dir = os.path.join(self._path, 'store')
 
         if os.path.isdir(self._path):
             z = os.listdir(self._path)
@@ -102,6 +101,18 @@ class Biglist:
         else:
             os.makedirs(self._store_dir)
 
+    @property
+    def path(self) -> str:
+        return self._path
+
+    @property
+    def _info_file(self) -> str:
+        return os.path.join(self._path, 'info.pickle')
+
+    @property
+    def _store_dir(self) -> str:
+        return os.path.join(self._path, 'store')
+
     def __len__(self) -> int:
         return self._len
 
@@ -114,7 +125,7 @@ class Biglist:
         so that the object is as if upon `__init__` with an empty directory pointed to
         by `path`.
         '''
-        rmtree(self._path)
+        shutil.rmtree(self._path)
         os.makedirs(self._store_dir)
         self._file_lengths = []
         self._cum_file_lengths = [0]
@@ -128,7 +139,7 @@ class Biglist:
         After this method is called, this object is no longer usable.
         '''
         self.clear()
-        rmtree(self._path)
+        shutil.rmtree(self._path)
 
     def __del__(self) -> None:
         if self._use_temp_path:
@@ -260,6 +271,23 @@ class Biglist:
         pickle.dump({'file_lengths': self._file_lengths, 'buffer_cap': self._buffer_cap},
             open(self._info_file, 'wb'))
         self._append_buffer = []
+
+    def move(self, path: str, overwrite: bool=False) -> None:
+        '''
+        Note that after this operation, existing files of this object are moved
+        to the new path, but if there are data in buffer that is not persisted yet,
+        they are not flushed. One still needs to call `flush` to conclude the object's
+        data population.
+        '''
+        assert path.startswith('/')
+        if os.path.exists(path):
+            if not overwrite:
+                raise ZpzError(f"destination directory `{path}` already exists")
+            else:
+                shutil.rmtree(path)
+        shutil.move(self.path, path)
+        self._path = path
+        self._use_temp_path = False
 
 
 def slice_to_range(idx: slice, n: int) -> range:
@@ -475,3 +503,103 @@ class ChainListView:
     @property
     def view(self) -> 'self':
         return self
+
+
+Element = TypeVar('Element')
+Category = TypeVar('Category')
+SplitOut = TypeVar('SplitOut', list, Biglist)
+
+def stratified_split(
+        x: Sequence[Element], 
+        split_frac: Union[float, List[float]], 
+        key: Callable[[Element], Category],
+        *, 
+        min_split_size: int=1, 
+        out_cls: SplitOut=Biglist, 
+        batch_size: int=None,
+        category_sizes: Dict[Category, int]=None) -> List[SplitOut]:
+    '''
+    `x`: input sequence. If `category_sizes` is given, the `x` will be walked through only once,
+        hence it can be any iterable. Otherwise it will be walked through twice,
+        hence can't be a generator. Usually a `list` or `Biglist`.
+    `split_frac`: fractions of output sequences. If a single value, then split into two parts with
+        the first part having this fraction of the original. If a list, then split into
+        `len(split_frac)` or `len(split_frac) + 1` parts, depending on whether the values add up to 1.
+    `key`: key function by which to split. It takes a single element in `x` and returns
+        a hashable value, usually a string. This function determines the *category* of an element.
+        The elements are split per category, that is, elements of each category are split
+        into multiple parts according to the specified fractions.
+        This is what *stratified* refers to.
+    `min_split_size`: minimum number of elements in each split of each category.
+        For example, suppose `x` contains category `AA` (which is the output of `key` applied
+        to elements of this category) that has 7 elements, and `split_frac` is 0.2.
+        Then for this category, first split has 1 element and second has 6.
+        If `min_split_size` is 2, then category `AA` is dropped entirely.
+    `out_cls`: class of the output sequences.
+    `batch_size`: batch size if `out_cls` is `Biglist`.
+
+    If the split is required to be random, then the input `x` should have already
+    been randomly shuffled.
+    '''
+    if isinstance(split_frac, list):
+        assert all(0.01 <= v < 0.99 for v in split_frac)
+        assert sum(split_frac) < 1.0001
+        assert split_frac[0] <= 0.99
+    else:
+        assert 0.0 <= split_frac <= 0.99
+        split_frac = [split_frac]
+
+    fractions = [split_frac[0]]
+    total = fractions[0]
+    for f in split_frac[1:]:
+        if total <= 0.99:
+            fractions.append(f)
+            total += fractions[-1]
+    if total <= 0.99:
+        fractions.append(1.0 - total)
+    assert len(fractions) > 1
+    fractions = fractions[:-1]
+
+    n_splits = len(fractions) + 1
+
+    if out_cls is Biglist:
+        if batch_size is None:
+            if isinstance(x, Biglist):
+                batch_size = x.batch_size
+        splits = [Biglist(batch_size=batch_size) for _ in range(n_splits)]
+    else:
+        assert out_cls is list
+        splits = [out_cls() for _ in range(n_splits)]
+
+    if category_sizes is None:
+        category_sizes = defaultdict(int)
+        for xx in x:
+            category_sizes[key(xx)] += 1
+
+    if min_split_size < 1:
+        min_category_size = 1
+    else:
+        min_category_size = int(min_split_size / min(min(fractions), 1. - sum(fractions))) + 1
+
+    category_split_sizes = {}
+    for cat, n in category_sizes.items():
+        if n >= min_category_size:
+            category_split_sizes[cat] = [int(n*v) for v in fractions]
+
+    for xx in x:
+        k = key(xx)
+        sizes = category_split_sizes.get(k)
+        if sizes is None:
+            continue
+        done = False
+        for i, n in enumerate(sizes):
+            if n > 0:
+                splits[i].append(xx)
+                sizes[i] -= 1
+                done = True
+                break
+        if not done:
+            splits[n_splits - 1].append(xx)
+
+    return splits
+
