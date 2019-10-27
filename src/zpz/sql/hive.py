@@ -384,22 +384,82 @@ class HiveTable(HiveTableMixin):
             location=location)
 
 
-def make_udf(module_or_code: Union[ModuleType, str]) -> str:
+def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str='python') -> str:
     '''
+    This function takes a Python module or a code string,
+    encodes it into a byte string, which is suitable for transmission over the Internet,
+    and returns a simple Python code snipplet that decodes and executes the original source code.
+
     Args:
-        `module_or_code`: either a module object, or a code block as a string.
+        `module_or_code`: either a Python module *object* (not the module name), 
+            or a code block as a string.
 
-    Suppose `s` is the output of this function, then it is used like this to construct a HiveQL statement:
+            If the UDF is module `mypackage.udfs.udf`, then you may do
 
-        sql = f"
+                import mypackage.udfs.udf
+                s = make_udf(mypackage.udfs.udf)
+
+            but not
+
+                s = make_udf('mypackage.udfs.udf')
+
+        `args`: if present, positional arguments to the UDF script.
+            Each argument value should be a simple string or number (which will be converted to string)
+            that does not contain any special characters (such as space, quotes) that
+            could potentially cause trouble on the command-line.
+
+            In this case, `module_or_code` processes a known number of arguments
+            specified on the command-line before processing records coming from `stdin`.
+            The number of args must be fixed; there can not be optional arguments with
+            default values, because the UDF assumes data records begin after the known number
+            of arguments.
+
+    Suppose `s` is the output of this function, then it is used like this 
+    to construct a HiveQL statement:
+
+        sql = f"""
             SELECT
                 TRANSFORM ( ...input_columns... )
                 USING '{s}'
                 AS (...output_columns...)
             FROM {db_name}.{table_name}
-        "
+        """
 
-    An important detail is that this string (`s`) is wrapped by single quotes in the HiveQL statement.
+    (The part after `FROM` is often a subquery rather than a table directly.)
+
+    An important detail is that this string (`s`) is wrapped by single quotes 
+    in the HiveQL statement, as shown above.
+
+    If `module_or_code` is a UDAF rather than UDF, a `CLUSTER BY` clause is needed, like this:
+
+        sql = f"""
+            SELECT
+                TRANSFORM (
+                    ...input_columns_including_aggregation_columns... 
+                    )
+                USING '{s}'
+                AS (...output_columns...)
+            FROM (
+                SELECT
+                    ...columns_including_aggregation_columns...
+                FROM {db_name}.{table_name}
+                CLUSTER BY ...aggregation_columns...
+                ) AS t
+        """
+
+    This function suppose 4 scenarios:
+
+        1. UDF
+        2. UDAF
+        3. UDF with arguments
+        4. UDAF with arguments
+
+    The difference between UDF and UDAF does not appear in this function, but rather
+    in `module_or_code` and the HiveQL statements that use the output of this function
+    (i.e. presence of `CLUSTER BY`).
+
+    While the current function is written in Python 3.6+, the UDF `module_or_code` 
+    is written in the Python version that is installed on the Hive server.
     '''
 
     if inspect.ismodule(module_or_code):
@@ -408,10 +468,17 @@ def make_udf(module_or_code: Union[ModuleType, str]) -> str:
         assert isinstance(module_or_code, str)
         s = module_or_code
 
-    encoded = base64.b64encode(s.encode('utf-8'))
+    encoded = base64.urlsafe_b64encode(s.encode('utf-8'))
 
-    script = 'import sys, base64; code = sys.argv[1]; exec(base64.b64decode(bytes(code)));'
+    assert py_command in ('python', 'python3')
+    if py_command == 'python':  # 'python' is assumed to be Python 2 here.
+        script = 'import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code));'
+    else:
+        script = 'import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code).decode());'
 
-    code = f'python -c "{script}" {str(encoded)[2:-1]}'
+    code = f'{py_command} -c "{script}" {str(encoded)[2:-1]}'
+
+    if args:
+        code = code + ' ' + ' '.join(str(v) for v in args)
 
     return code
