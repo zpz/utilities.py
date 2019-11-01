@@ -10,12 +10,160 @@ import warnings
 from .exceptions import ZpzError
 
 
-def regulate_index(idx, length) -> int:
-    if idx >= length or idx < -length:
-        raise IndexError(f"index '{idx}' out of range'")
-    if idx < 0:
-        idx = length + idx
-    return idx
+def slice_to_range(idx: slice, n: int) -> range:
+    '''
+    This functions takes a `slice`, combined with the length of the sequence,
+    to determine an explicit value for each of `start`, `stop`, and `step`,
+    and returns a `range` object.
+
+    `n`: length of sequence
+    '''
+    if n < 1:
+        return range(0)
+
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step is None:
+        step = 1
+
+    if step == 0:
+        raise ValueError('slice step cannot be zero')
+    elif step > 0:
+        if start is None:
+            start = 0
+        elif start < 0:
+            start = max(0, n + start)
+        if stop is None:
+            stop = n
+        elif stop < 0:
+            stop = n + stop
+    else:
+        if start is None:
+            start = n - 1
+        elif start < 0:
+            start = n + start
+        if stop is None:
+            stop = -1
+        elif stop < 0:
+            stop = max(-1, n + stop)
+
+    return range(start, stop, step)
+
+
+def regulate_range(idx: range, n: int) -> range:
+    '''
+    This functions takes a `range` (such as one returned by `slice_to_range`),
+    combined with the length of the sequence,
+    to refine the values of `start`, `stop`, and `step`,
+    and returns a new `range` object.
+
+    `n`: length of sequence
+    '''
+    start, stop, step = idx.start, idx.stop, idx.step
+    if step > 0:
+        if start >= n:
+            start, stop, step = 0, 0, 1
+        else:
+            start = max(start, 0)
+            stop = min(stop, n)
+            if stop <= start:
+                start, stop, step = 0, 0, 1
+    else:
+        if start < 0:
+            start, stop, step = 0, 0, 1
+        else:
+            start = min(start, n -1)
+            stop = max(-1, stop)
+            if stop >= start:
+                start, stop, step = 0, 0, 1
+
+    return range(start, stop, step)
+
+
+class ListView:
+    def __init__(self, list_: Sequence, range_: range=None):
+        '''
+        An object of `ListView` is created by `Biglist` or `ListView`.
+        User should not attempt to create an object of this class directly.
+        '''
+        if range_ is None:
+            len_ = len(list_)
+            range_ = range(len_)
+        else:
+            n = len(list_)
+            range_ = regulate_range(range_, n)
+            len_ = len(range_)
+        self._list = list_
+        self._range = range_
+        self._len = len_
+
+    def __len__(self) -> int:
+        return len(self._range)
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+    def __getitem__(self, idx: Union[int, slice]):
+        '''
+        Element access by a single index or by slice.
+        Negative index and standard slice syntax both work as expected.
+
+        Sliced access returns a `BiglistView` object, which is iterable.
+        '''
+        if isinstance(idx, int):
+            return self._list[self._range[idx]]
+        elif isinstance(idx, slice):
+            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
+            if len(range_) == 0:
+                return ListView([])
+
+            start, stop, step = range_.start, range_.stop, range_.step
+
+            start = self._range[start]
+            step = self._range.step * step
+
+            if stop >= 0:
+                stop = self._range.start + self._range.step * stop
+            else:
+                assert stop == -1 and range_.step < 0
+                if self._range.step > 0:
+                    stop = self._range.start - 1
+                else:
+                    stop = self._range.start + 1
+
+            return ListView(self._list, range(start, stop, step))
+        else:
+            raise TypeError(f"an integer or slice is expected")
+
+    def __iter__(self):
+        for idx in self._range:
+            yield self._list[idx]
+
+    def iterbatches(self, batch_size: int):
+        '''
+        Iterate over batches of specified size.
+        In general, every batch has the same number of elements
+        except for the final batch, which contains however many elements
+        remain.
+
+        Suppose `obj` is an object of this class, then
+
+            for batch in obj.iterbatches(100):
+                # `batch` is a list of up to 100 items
+                ...
+
+        Returns a generator.
+        '''
+        assert batch_size > 0
+        n_done = 0
+        N = len(self)
+        while n_done < N:
+            n_todo = min(N - n_done, batch_size)
+            yield self[n_done : (n_done + n_todo)]
+            n_done += n_todo
+
+    @property
+    def view(self) -> 'self':
+        return self
 
 
 class Biglist:
@@ -290,137 +438,19 @@ class Biglist:
         self._use_temp_path = False
 
 
-def slice_to_range(idx: slice, n: int) -> range:
+def regulate_index(idx: range, length: int) -> int:
     '''
-    This functions takes a `slice`, combined with the length of the sequence,
-    to determine an explicit value for each of `start`, `stop`, and `step`,
-    and returns a `range` object.
+    This function takes a `range` (such as one returned by `slice_to_range`),
+    combined with the length of the sequence, to refine the values of `start`,
+    `stop`, and `step`, and returns a new `range` object.
 
-    `n`: length of sequence
+    `length`: length of sequence.
     '''
-    if n < 1:
-        return range(0)
-
-    start, stop, step = idx.start, idx.stop, idx.step
-    if step is None:
-        step = 1
-
-    if step == 0:
-        raise ValueError('slice step cannot be zero')
-    elif step > 0:
-        if start is None:
-            start = 0
-        elif start < 0:
-            start = max(0, n + start)
-        if stop is None:
-            stop = n
-        elif stop < 0:
-            stop = n + stop
-    else:
-        if start is None:
-            start = n - 1
-        elif start < 0:
-            start = n + start
-        if stop is None:
-            stop = -1
-        elif stop < 0:
-            stop = max(-1, n + stop)
-
-    return range(start, stop, step)
-
-
-def regulate_range(idx: range, n: int) -> range:
-    '''
-    This functions takes a `range` (such as one returned by `slice_to_range`),
-    combined with the length of the sequence,
-    to refine the values of `start`, `stop`, and `step`,
-    and returns a new `range` object.
-
-    `n`: length of sequence
-    '''
-    start, stop, step = idx.start, idx.stop, idx.step
-    if step > 0:
-        if start >= n:
-            start, stop, step = 0, 0, 1
-        else:
-            start = max(start, 0)
-            stop = min(stop, n)
-            if stop <= start:
-                start, stop, step = 0, 0, 1
-    else:
-        if start < 0:
-            start, stop, step = 0, 0, 1
-        else:
-            start = min(start, n -1)
-            stop = max(-1, stop)
-            if stop >= start:
-                start, stop, step = 0, 0, 1
-
-    return range(start, stop, step)
-
-
-class ListView:
-    def __init__(self, list_: Sequence, range_: range=None):
-        '''
-        An object of `ListView` is created by `Biglist` or `ListView`.
-        User should not attempt to create an object of this class directly.
-        '''
-        if range_ is None:
-            len_ = len(list_)
-            range_ = range(len_)
-        else:
-            n = len(list_)
-            range_ = regulate_range(range_, n)
-            len_ = len(range_)
-        self._list = list_
-        self._range = range_
-        self._len = len_
-
-    def __len__(self) -> int:
-        return len(self._range)
-
-    def __bool__(self) -> bool:
-        return len(self) > 0
-
-    def __getitem__(self, idx: Union[int, slice]):
-        '''
-        Element access by a single index or by slice.
-        Negative index and standard slice syntax both work as expected.
-
-        Sliced access returns a `BiglistView` object, which is iterable.
-        '''
-        if isinstance(idx, int):
-            return self._list[self._range[idx]]
-        elif isinstance(idx, slice):
-            range_ = regulate_range(slice_to_range(idx, self._len), self._len)
-            if len(range_) == 0:
-                return ListView([])
-
-            start, stop, step = range_.start, range_.stop, range_.step
-
-            start = self._range[start]
-            step = self._range.step * step
-
-            if stop >= 0:
-                stop = self._range.start + self._range.step * stop
-            else:
-                assert stop == -1 and range_.step < 0
-                if self._range.step > 0:
-                    stop = self._range.start - 1
-                else:
-                    stop = self._range.start + 1
-
-            return ListView(self._list, range(start, stop, step))
-        else:
-            raise TypeError(f"an integer or slice is expected")
-
-    def __iter__(self):
-        for idx in self._range:
-            yield self._list[idx]
-
-    @property
-    def view(self) -> 'self':
-        return self
+    if idx >= length or idx < -length:
+        raise IndexError(f"index '{idx}' out of range'")
+    if idx < 0:
+        idx = length + idx
+    return idx
 
 
 class ChainListView:
@@ -505,48 +535,49 @@ class ChainListView:
         return self
 
 
-Element = TypeVar('Element')
-Category = TypeVar('Category')
-SplitOut = TypeVar('SplitOut', list, Biglist)
+ItemValue = TypeVar('ItemValue')
+ItemKey = TypeVar('ItemKey')
 
-def stratified_split(
-        x: Sequence[Element], 
-        split_frac: Union[float, List[float]], 
-        key: Callable[[Element], Category],
-        *, 
-        min_split_size: int=1, 
-        out_cls: SplitOut=Biglist, 
+
+def bisplit(
+        x: Iterable[ItemValue],
+        split_frac: float,
+        key: Callable[[ItemValue], ItemKey],
+        *,
+        min_split_size: int=1,
+        out_cls: Union[List, Biglist]=Biglist,
         batch_size: int=None,
-        category_sizes: Dict[Category, int]=None) -> List[SplitOut]:
+        category_sizes: Dict[ItemKey, int]=None,
+        ) -> List:
     '''
-    `x`: input sequence. If `category_sizes` is given, the `x` will be walked through only once,
+    `x`: input sequence. If `category_sizes` is given, then `x` will be walked through only once,
         hence it can be any iterable. Otherwise it will be walked through twice,
         hence can't be a generator. Usually a `list` or `Biglist`.
-    `split_frac`: fractions of output sequences. If a single value, then split into two parts with
-        the first part having this fraction of the original. If a list, then split into
-        `len(split_frac)` or `len(split_frac) + 1` parts, depending on whether the values add up to 1.
+    `split_frac`: fraction of the first output sequence; the other will be `1 - split_frac`
+        of the data.
     `key`: key function by which to split. It takes a single element in `x` and returns
-        a hashable value, usually a string. This function determines the *category* of an element.
+        a hashable value, usually a string or an int. 
+        This function determines the *category* of an element.
         The elements are split per category, that is, elements of each category are split
-        into multiple parts according to the specified fractions.
-        This is what *stratified* refers to.
+        into two parts according to the specified fractions.
+        This is known as *stratified* split.
     `min_split_size`: minimum number of elements in each split of each category.
         For example, suppose `x` contains category `AA` (which is the output of `key` applied
         to elements of this category) that has 7 elements, and `split_frac` is 0.2.
         Then for this category, first split has 1 element and second has 6.
         If `min_split_size` is 2, then category `AA` is dropped entirely.
     `out_cls`: class of the output sequences.
-    `batch_size`: batch size if `out_cls` is `Biglist`.
+    `batch_size`: batch size if `out_cls` is `Biglist` or subclass.
 
     If the split is required to be random, then the input `x` should have already
     been randomly shuffled.
     '''
     if isinstance(split_frac, list):
         assert all(0.01 <= v < 0.99 for v in split_frac)
-        assert sum(split_frac) < 1.0001
+        assert sum(split_frac) < 1.0
         assert split_frac[0] <= 0.99
     else:
-        assert 0.0 <= split_frac <= 0.99
+        assert 0.1 <= split_frac <= 0.99
         split_frac = [split_frac]
 
     fractions = [split_frac[0]]
@@ -562,11 +593,11 @@ def stratified_split(
 
     n_splits = len(fractions) + 1
 
-    if out_cls is Biglist:
+    if issubclass(out_cls, Biglist):
         if batch_size is None:
             if isinstance(x, Biglist):
                 batch_size = x.batch_size
-        splits = [Biglist(batch_size=batch_size) for _ in range(n_splits)]
+        splits = [out_cls(batch_size=batch_size) for _ in range(n_splits)]
     else:
         assert out_cls is list
         splits = [out_cls() for _ in range(n_splits)]
@@ -579,12 +610,12 @@ def stratified_split(
     if min_split_size < 1:
         min_category_size = 1
     else:
-        min_category_size = int(min_split_size / min(min(fractions), 1. - sum(fractions))) + 1
+        min_category_size = int(min_split_size / min(fractions + [1. - sum(fractions)]) + 0.5)
 
     category_split_sizes = {}
     for cat, n in category_sizes.items():
         if n >= min_category_size:
-            category_split_sizes[cat] = [int(n*v) for v in fractions]
+            category_split_sizes[cat] = [int(n*v + .5) for v in fractions]
 
     for xx in x:
         k = key(xx)
@@ -602,4 +633,3 @@ def stratified_split(
             splits[n_splits - 1].append(xx)
 
     return splits
-
