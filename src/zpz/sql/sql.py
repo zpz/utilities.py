@@ -103,13 +103,17 @@ class SQLReader:
                 str(self._cursor_args))
             raise
 
-    @retry(wait_exponential_multiplier=1000, wait_exponential_max=10000, stop_max_attempt_number=7)
     def _connect(self) -> None:
         try:
             self._conn = self._conn_func(**self._conn_args)
-        except:
-            logger.error('Failed to connect to server with arguments %s' % str(
-                self._conn_args))
+        except Exception as e:
+            args = {**self._conn_args}
+            if 'password' in args:
+                args['password'] = '[hidden]'
+            host = self._conn_args.get('host', '<host>')
+            port = self._conn_args.get('port', '<port>')
+            logger.error(f'Failed to connect to server {host}:{port} with arguments {args}')
+            logger.error(str(e))
             raise
         self._create_cursor()
 
