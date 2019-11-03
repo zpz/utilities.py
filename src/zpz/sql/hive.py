@@ -1,10 +1,10 @@
 import base64
 import inspect
 import logging
-import os
 from pprint import pprint
 from types import ModuleType
 from typing import Sequence, Tuple, List, Dict, Union
+import warnings
 
 from impala import dbapi
 from retrying import retry
@@ -21,30 +21,54 @@ logger = logging.getLogger(__name__)
 class Hive(SQLClient):
     def __init__(self,
                  *,
+                 user: str,
+                 password: str,
                  host: str,
                  port: int=10000,
-                 user: str=None,
-                 password: str=None,
-                 auth_mechanism: str='PLAIN',
                  dynamic_partition: bool=True,
                  configuration: dict=None):
+        '''
+        `configuration` is a dict containing things you would otherwise write as
+            
+            set abc=def;
+            set jkl=xyz;
+
+        in scripts. You can continuue to write including those statements in a call
+        to `write`, or specify them in `configuration`.
+        '''
         super().__init__(
             conn_func=dbapi.connect,
-            cursor_args={'user': user},
             host=host,
             port=port,
             user=user,
             password=password,
-            auth_mechanism=auth_mechanism)
-        config = configuration or {}
+            auth_mechanism='PLAIN',
+            use_ssl=True)
+        if configuration:
+            config = {k: str(v) for k, v in configuration.items()}
+        else:
+            config = {}
         if dynamic_partition:
             config['hive.exec.dynamic.partition'] = 'true'
             config['hive.exec.dynamic.partition.mode'] = 'nonstrict'
 
         # config['hive.execution.engine'] = 'tez'
         # config['tez.queue.name'] = 'myqueue'
-        config['hive.optimize.s3.query'] = 'true'
-        config['hive.enforce.bucketing'] = 'true'
+        # config['hive.optimize.s3.query'] = 'true'
+        # config['hive.enforce.bucketing'] = 'true'
+
+        cc = [
+            ('mapred.min.split.size', '2048000000'),
+            ('mapred.max.split.size', '2048000000'),
+            ('yarn.nodemanager.resource.memory-mb', '20480'),
+            ('mapreduce.map.memory.mb', '16384'),
+            ('mapreduce.map.java.opts', '-Xmx6144m'),
+            ('mapred.map.tasks', '64'),
+            ('mapred.reduce.tasks', '64')
+        ]
+        for k, v in cc:
+            if k not in config:
+                config[k] = str(v)
 
         self._configuration = config
 
@@ -63,8 +87,11 @@ class Hive(SQLClient):
 
     def read(self, sql: str):
         sqls, config = self._parse_sql(sql)
-        assert len(sqls) == 1
-        sql = sqls[0]
+        if len(sqls) > 1:
+            warnings.warn('Executing more than one SQL statement by `Hive.read`')
+            sql = ';\n'.join(sqls)
+        else:
+            sql = sqls[0]
         config = {**self._configuration, **config}
         return super().read(sql, configuration=config)
 

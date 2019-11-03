@@ -3,7 +3,7 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, ListView, ChainListView, stratified_split
+from zpz.biglist import Biglist, ListView, ChainListView, bisplit
 from zpz.path import make_temp_dir
 from zpz.exceptions import ZpzError
 
@@ -144,23 +144,10 @@ def test_split():
         [2, 3, 5, 2, 4, 7, 3],
         [5, 8, 4, 4, 6, 7, 8, 3, 2, 5, 1, 7, 8, 6, 3, 2, 12, 20, 18, 17, 16, 19],
     ]
-    result = stratified_split(input, split_frac=0.3, key=lambda x: x%3, min_split_size=1, out_cls=list)
+    result = bisplit(input, split_frac=0.3, key=lambda x: x%3, min_split_size=1, out_cls=list)
     
     assert list(result[0]) == expected[0]
     assert list(result[1]) == expected[1]
-
-    # test 2:
-    #  first split collects four 0's, four 1's, six 2's.
-    #  second split collects two 0's, two 1's, three 2's.
-    expected = [
-        [2, 3, 5, 2, 4, 7, 5, 8, 3, 4, 4, 6, 8, 3],
-        [7, 2, 5, 1, 8, 6, 3],
-        [7, 2, 12, 20, 18, 17, 16, 19],
-    ]
-    result = stratified_split(input, split_frac=[0.5, 0.3], key=lambda x: x%3, min_split_size=1, out_cls=list)
-    assert list(result[0]) == expected[0]
-    assert list(result[1]) == expected[1]
-    assert list(result[2]) == expected[2]
 
 
 def test_chainlistview():
