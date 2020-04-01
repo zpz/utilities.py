@@ -61,5 +61,4 @@ if [[ "${IMG}" == - ]]; then
 fi
 
 cmd="$(docker run --rm ${IMG} make-proj-builder)" || exit 1
-
 bash -c "${cmd}" -- $@

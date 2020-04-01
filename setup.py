@@ -1,7 +1,13 @@
 import pathlib
 from setuptools import setup, find_packages
 
+# The code below assumes the package to be installed is under `src/`
+# in the repo, which is the recommended practice. If you follow this
+# recommendation, then typically this script needs no change.
+
+
 HERE = pathlib.Path(__file__).parent
+
 
 def get_repo_name():
     name = ''
@@ -19,6 +25,7 @@ def get_repo_name():
     else:
         name = HERE.resolve().name
         folders = list((HERE / 'src').glob('*'))
+        folders = [v.name for v in folders if v.is_dir() and not str(v).endswith('.egg-info')]
         if len(folders) > 1:
             raise Exception('Expecting a single directory in "src/" to infer package name')
         name = folders[0].name
