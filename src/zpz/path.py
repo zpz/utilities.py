@@ -139,3 +139,11 @@ def make_temp_dir() -> str:
     e.g. using `shutil.rmtree`.
     '''
     return tempfile.mkdtemp()
+
+
+def prepare_path(path, *path_elements):
+    ff = os.path.join(path, *path_elements)
+    dirname = os.path.dirname(os.path.abspath(ff))
+    if not os.path.isdir(dirname):
+        os.makedirs(dirname)
+    return ff

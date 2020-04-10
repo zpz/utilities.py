@@ -10,6 +10,7 @@ RUN apt-update \
     && apt-clean
 
 
+# Packages for code development.
 RUN apt-update \
     && apt-install gcc \
     && DEBIAN_FRONTEND=noninteractive pip-install \
@@ -17,7 +18,6 @@ RUN apt-update \
         'memory-profiler==0.57.0' \
         'mypy==0.770' \
         'pretty-errors==1.2.16' \
-        'pympler==0.8' \
         'pytest-runner==5.2' \
         'readme-renderer[md]==25.0' \
         'twine==3.1.1' \
@@ -25,6 +25,7 @@ RUN apt-update \
     && apt-clean
 
 
+# Use `pympler` to check total memory size of a Python object.
 
 # Use `yapf` to format Python code in-place:
 #   yapf -ir -vv --no-local-style .
@@ -64,10 +65,8 @@ RUN pip-install \
         'arrow==0.15.5' \
         'avro-python3==1.9.2.1' \
         'boltons==20.1.0' \
-        'orjson==2.6.2' \
         'pytz==2019.3' \
         'toolz==0.10.0'
-
 
 
 # Hive

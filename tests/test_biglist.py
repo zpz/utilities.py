@@ -3,9 +3,8 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, ListView, ChainListView, bisplit
+from zpz.biglist import Biglist, BiglistView
 from zpz.path import make_temp_dir
-from zpz.exceptions import ZpzError
 
 
 PATH = os.path.join(os.environ['TMPDIR'], 'test', 'biglist')
@@ -46,9 +45,14 @@ def test_existing_numbers():
     assert list(mylist) == data
 
     rmtree(PATH)
-    
 
-def _test_listview(datalv):
+
+def test_view():
+    bl = Biglist()
+    bl.extend(range(20))
+    bl.flush()
+    datalv = bl.view()
+
     data = list(range(20))
     assert list(datalv) == data
 
@@ -56,7 +60,7 @@ def _test_listview(datalv):
     assert datalv[17] == data[17]
 
     lv = datalv[:9]
-    assert isinstance(lv, ListView)
+    assert isinstance(lv, BiglistView)
     assert list(lv) == data[:9]
     assert lv[-1] == data[8]
     assert lv[3] == data[3]
@@ -78,16 +82,6 @@ def _test_listview(datalv):
     assert list(lv[::-3]) == data[1::6]
 
 
-def test_listview():
-    _test_listview(ListView(list(range(20))))
-
-
-def test_biglistview():
-    mylist = Biglist(batch_size=7)
-    mylist.extend(range(20))
-    _test_listview(mylist.view)
-
-
 def test_move():
     bl = Biglist(batch_size=4)
     bl.extend(range(17))
@@ -102,82 +96,17 @@ def test_move():
     bl.destroy()
 
 
-def test_split():
-    input = [
-        2,  # 2   0
-        3,  # 0   0
-        5,  # 2   0
-        2,  # 2   0
-        4,  # 1   0
-        7,  # 1   0
-        5,  # 2   0
-        8,  # 2   0
-        3,  # 0   0
-        4,  # 1   0
-        4,  # 1   0
-        6,  # 0   0
-        7,  # 1   1
-        8,  # 2   0
-        3,  # 0   0
-        2,  # 2   1
-        5,  # 2   1
-        1,  # 1   1
-        7,  # 1
-        8,  # 2   1
-        6,  # 0   1
-        3,  # 0   1
-        2,  # 2
-        12, # 0
-        20, # 2
-        18, # 0
-        17, # 2
-        16, # 1
-        19, # 1
-    ]
-    # length 29.
-    # key: x % 3
-    # categories: 0 (8), 1 (9), 2 (12)
+def test_fileview():
+    bl = Biglist(batch_size=4)
+    bl.extend(range(22))
+    bl.flush()
+    assert len(bl.file_lengths) == 6
 
-    # test 1:
-    #   first split collects two 0's, two 1's, three 2's.
-    expected = [
-        [2, 3, 5, 2, 4, 7, 3],
-        [5, 8, 4, 4, 6, 7, 8, 3, 2, 5, 1, 7, 8, 6, 3, 2, 12, 20, 18, 17, 16, 19],
-    ]
-    result = bisplit(input, split_frac=0.3, key=lambda x: x%3, min_split_size=1, out_cls=list)
-    
-    assert list(result[0]) == expected[0]
-    assert list(result[1]) == expected[1]
+    assert list(bl.fileview(1)) == [4, 5, 6, 7]
 
+    vs = bl.fileviews()
+    list(vs[2]) == [8, 9, 10, 11]
 
-def test_chainlistview():
-    mylist1 = Biglist(batch_size=5)
-    mylist1.extend(range(0, 8))
+    vvs = vs[2][1:3]
+    assert list(vvs) == [9, 10]
 
-    mylist2 = Biglist(batch_size=5)
-    mylist2.extend(range(8, 18))
-
-    mylist3 = Biglist(batch_size=4)
-    mylist3.extend(range(18, 32))
-
-    mylist = ChainListView(mylist1.view, mylist2.view, mylist3.view)
-    data = list(range(32))
-
-    assert list(mylist) == data
-    assert mylist[12] == data[12]
-    assert mylist[17] == data[17]
-    assert mylist[-8] == data[-8]
-    assert list(mylist[:8]) == data[:8]
-    assert list(mylist[-6:]) == data[-6:]
-    assert list(mylist[2:30:3]) == data[2:30:3]
-    assert list(mylist[::-1]) == data[::-1]
-    assert list(mylist[-2:-9:-1]) == data[-2:-9:-1]
-    assert list(mylist[::-3]) == data[::-3]
-
-    yourlist = mylist[-2:-30:-3]
-    yourdata = data[-2:-30:-3]
-
-    assert list(yourdata) == yourdata
-    assert yourlist[3] == yourdata[3]
-    assert list(yourlist[2:20:4]) == yourdata[2:20:4]
-    assert list(yourlist[-2:-20:-3]) == yourdata[-2:-20:-3]
