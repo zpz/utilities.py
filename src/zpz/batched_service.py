@@ -76,8 +76,8 @@ class VectorTransformer(metaclass=ABCMeta):
             q_out.put(w)
 
     @classmethod
-    def start(cls, *, q_in, q_out, init_kwargs):
-        transformer = cls(**init_kwargs)
+    def start(cls, *, q_in: mp.Queue, q_out: mp.Queue, init_kwargs: Dict = None):
+        transformer = cls(**(init_kwargs or {}))
         transformer.run(q_in=q_in, q_out=q_out)
 
 
@@ -164,7 +164,7 @@ class BatchedService:
         logger.info('Starting %s ...', self.__class__.__name__)
 
         p_worker = mp.Process(
-            target=self._worker_class.run,
+            target=self._worker_class.start,
             kwargs={
                 'q_in': self._q_to_worker,
                 'q_out': self._q_from_worker,

@@ -50,7 +50,7 @@ def test_single():
     x = [random.uniform(0.3, 98) for _ in range(333)]
     y = [int(v + 1) * int(v + 1) for v in x]
 
-    my = BatchedService(batching_max_batch_size=100, worker_class=MyModel)
+    my = BatchedService(max_batch_size=100, worker_class=MyModel)
     my.start()
 
     print('')
@@ -63,7 +63,7 @@ def test_bulk():
     x = [random.uniform(0.3, 98) for _ in range(333)]
     y = [int(v + 1) * int(v + 1) for v in x]
 
-    my = BatchedService(batching_max_batch_size=100, worker_class=MyModel)
+    my = BatchedService(max_batch_size=100, worker_class=MyModel)
     my.start()
 
     print('')
@@ -94,7 +94,7 @@ class YourModel(VectorTransformer):
 
 class YourService(BatchedService):
     def __init__(self):
-        super().__init__(batching_max_batch_size=3, worker_class=YourModel)
+        super().__init__(max_batch_size=3, worker_class=YourModel)
 
     async def preprocess(self, x):
         if 5 in x:
