@@ -335,7 +335,7 @@ class BatchedService:
         while self._batch_len >= self.max_batch_size:
             # Basket is not ready to receive new request. Wait and retry.
             if self._submit_batch_timer is None:
-                self._set_batch_submitter()
+                self._set_batch_submitter(self.timeout_seconds * 0.1)
             await asyncio.sleep(0.0012)
 
         # Put request in basket.
