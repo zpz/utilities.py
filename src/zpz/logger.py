@@ -21,7 +21,8 @@ from datetime import datetime
 import logging
 from logging import Formatter
 import time
-from typing import Union
+from typing import Union, Dict
+import warnings
 
 import pytz
 
@@ -37,17 +38,17 @@ import pytz
 #   If logging.raiseExceptions is False (production mode), the event is silently dropped.
 #   If logging.raiseExceptions is True (development mode), a message 'No handlers could be found for logger X.Y.Z' is printed once.
 
-logging.logThreads = 0
-logging.logProcesses = 0
+# logging.logThreads = 0
+# logging.logProcesses = 0
 
 
 def _make_config(
         *,
-        level: Union[str, int]='info',
-        format: str='[%(asctime)s; %(name)s, %(funcName)s, %(lineno)d; %(levelname)s]    %(message)s',
+        level: Union[str, int] = 'info',
+        with_process_name: bool = False,
+        with_thread_name: bool = False,
         timezone: str='US/Pacific',
-        datefmt: str='%Y-%m-%d %H:%M:%S %Z',
-        **kwargs) -> dict:
+        **kwargs) -> Dict:
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING,
                      logging.ERROR, logging.CRITICAL):
@@ -65,8 +66,42 @@ def _make_config(
             return converted.timetuple()
         Formatter.converter = custom_time
 
-    return dict(format=format, datefmt=datefmt, level=level, **kwargs)
+    datefmt = '%Y-%m-%d %H:%M:%S'
+
+    msg = '[%(asctime)s.%(msecs)03d ' + timezone + '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
+
+    if with_process_name:
+        if with_thread_name:
+            fmt = f'{msg} [%(processName) %(threadName)s]    %(message)s'
+        else:
+            fmt = f'{msg} [%(processName)s    %(message)s]'
+    elif with_thread_name:
+        fmt = f'{msg} [%(threadName)s]    %(message)s'
+    else:
+        fmt = f'{msg}    %(message)s'
+
+    return dict(format=fmt, datefmt=datefmt, level=level, **kwargs)
 
 
 def config_logger(**kwargs) -> None:
-    logging.basicConfig(**_make_config(**kwargs))
+    kw = _make_config(**kwargs)
+
+    rootlogger = logging.getLogger()
+    if rootlogger.hasHandlers():
+        rootlogger.handlers = []
+
+    logging.basicConfig(**kw)
+
+    logging.captureWarnings(True)
+    warnings.filterwarnings('default', category=ResourceWarning)
+    warnings.filterwarnings('default', category=DeprecationWarning)
+
+    try:
+        # Turn off annoyance in ptpython when setting DEBUG logging
+        logging.getLogger('parso').setLevel(logging.ERROR)
+    except:
+        pass
+
+    # This is how to turn on asyncio debugging.
+    # Don't turn it on in this function.
+    # asyncio.get_event_loop().set_debug(True)
