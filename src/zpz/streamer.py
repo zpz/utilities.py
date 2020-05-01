@@ -30,6 +30,97 @@ NO_MORE_DATA = 'THERE WILL BE NO MORE DATA, DUDE'
 # This way the class is both an iterable and an iterator.
 
 
+class Batcher:
+    '''
+    A `Batcher` object takes elements from an input stream,
+    and bundle them up into batches up to a size limit,
+    and produce the batches in an iterable.
+    '''
+    def __init__(self,
+                 input_stream: Union[AsyncIterable, AsyncIterator],
+                 batch_size: int,
+                 timeout_seconds: float = None,
+                 ):
+        if not isinstance(input_stream, AsyncIterator):
+            assert isinstance(input_stream, AsyncIterable)
+            input_stream = input_stream.__aiter__()
+        assert 0 < batch_size <= 10000
+        self._input_stream = input_stream
+        self._batch_size = batch_size
+        if timeout_seconds:
+            assert timeout_seconds > 0
+        self._timeout = timeout_seconds
+        self._start_time = None
+        self._batch = [None for _ in range(self._batch_size)]
+        self._batch_len = 0
+        self._loop = asyncio.get_event_loop()
+
+    def __aiter__(self):
+        return self
+    
+    async def __anext__(self):
+        while self._batch_len < self._batch_size:
+            try:
+                if not self._timeout:
+                    z = await self._input_stream.__anext__()
+                else:
+                    if self._batch_len == 0:
+                        z = await self._input_stream.__anext__()
+                        if self._timeout:
+                            self._start_time = self._loop.time()
+                    else:
+                        if self._loop.time() - self._start_time >= self._timeout:
+                            break
+                        try:
+                            z = await asyncio.wait_for(
+                                self._input_stream.__anext__(),
+                                self._timeout - (self._loop.time() - self._start_time),
+                            )
+                        except asyncio.TimeoutError:
+                            # TODO
+                            # when timeout happens, will it mess up the state of
+                            # `self._input_stream`?
+                            # Return with the partial batch.
+                            break
+                self._batch[self._batch_len] = z
+                self._batch_len += 1
+            except StopAsyncIteration:
+                break
+
+        if self._batch_len > 0:
+            z = self._batch[: self._batch_len]
+            self._batch = [None for _ in range(self._batch_size)]
+            self._batch_len = 0
+            return z
+        else:
+            raise StopAsyncIteration
+
+    
+class Unbatcher:
+    def __init__(self, input_stream: Union[AsyncIterable, AsyncIterator]):
+        if not isinstance(input_stream, AsyncIterator):
+            assert isinstance(input_stream, AsyncIterable)
+            input_stream = input_stream.__aiter__()
+        self._input_stream = input_stream
+        self._batch = None
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        while True:
+            if self._batch is None:
+                batch = await self._input_stream.__anext__()
+                # If this raises StopAsyncIteration, let it propagate
+                if not isinstance(batch, Iterator):
+                    batch = iter(batch)
+                self._batch = batch
+            try:
+                return next(self._batch)
+            except StopIteration:
+                self._batch = None
+
+
 class BufferedTransformer:
     def __init__(
             self,
@@ -160,6 +251,92 @@ class Transformer:
                     raise
 
 
+class BufferedSink:
+    def __init__(
+            self,
+            input_stream: AsyncIterable,
+            sink_func: Callable[[Any], Union[asyncio.Task, asyncio.Future]],
+            buffer_size: int,
+            skip_exceptions: bool = False,
+    ):
+        assert isinstance(input_stream, AsyncIterable)
+        self._input_stream = input_stream
+        self._sink_func = sink_func
+        self._skip_exceptions = skip_exceptions
+        self._task_get_input = None
+        self._loop = asyncio.get_event_loop()
+        assert 0 < buffer_size <= 10000
+        self._q = asyncio.Queue()
+        self._sem = asyncio.Semaphore(buffer_size)
+
+    def __del__(self):
+        if self._task_get_input is not None and not self._task_get_input.done():
+            self._task_get_input.cancel()
+
+    async def _get_input(self):
+        async for x in self._input_stream:
+            await self._sem.acquire()
+            self._q.put_nowait(self._sink_func(x))
+        self._q.put_nowait(NO_MORE_DATA)
+    
+    async def a_drain(self, log_every: int = 1000):
+        self._task_get_input = self._loop.create_task(self._get_input())
+        n = 0
+        while True:
+            task = await self._q.get()
+            self._sem.release()
+            if task == NO_MORE_DATA:
+                break
+            try:
+                await task
+            except Exception as e:
+                if self._skip_exceptions:
+                    logger.warning('%s: skipped', e)
+                else:
+                    raise
+
+            if log_every:
+                n += 1
+                if n % log_every == 0:
+                    logger.info('drained %d items', n)
+        await self._task_get_input
+
+    def drain(self, log_every: int = 1000):
+        self._loop.run_until_complete(self.a_drain(log_every))
+
+
+class Sink:
+    def __init__(self,
+                 input_stream: AsyncIterable,
+                 sink_func: Callable[[Any], Union[asyncio.Future, asyncio.Task]],
+                 skip_exceptions: bool = False,
+                 ):
+        assert isinstance(input_stream, AsyncIterable)
+        self._input_stream = input_stream
+        self._sink_func = sink_func
+        self._skip_exceptions = skip_exceptions
+        self._loop = asyncio.get_event_loop()
+
+    async def a_drain(self, log_every: int = 1000):
+        n = 0
+        async for v in self._input_stream:
+            try:
+                await self._sink_func(v)
+            except Exception as e:
+                if self._skip_exceptions:
+                    logger.warning('%s: skipped', e)
+                else:
+                    raise
+
+            if log_every:
+                n += 1
+                if n % log_every == 0:
+                    logger.info('drained %d items', n)
+
+    def drain(self, log_every: int = 1000):
+        self._loop.run_until_complete(self.a_drain(log_every))
+
+
 class Streamer:
     def __init__(
             self,
@@ -172,13 +349,26 @@ class Streamer:
         self._loop = loop or asyncio.get_event_loop()
         self._n_process_workers = mp.cpu_count() + (n_process_workers or 0)
 
+    def batch(self, batch_size: int, timeout_seconds: float = None):
+        self._transformers.append(
+            Batcher(
+                self._transformers[-1],
+                batch_size,
+                timeout_seconds
+            )
+        )
+
+    def unbatch(self):
+        self._transformers.append(Unbatcher(self._transformers[-1]))
+        return self
+
     def _transform(
-        self,
-        trans_func: Callable[[Any], Union[asyncio.Task, asyncio.Future]],
-        *,
-        buffer_size: int = None,
-        keep_order: bool = True,
-        return_exceptions: bool = False,
+            self,
+            trans_func: Callable[[Any], Union[asyncio.Task, asyncio.Future]],
+            *,
+            buffer_size: int = None,
+            keep_order: bool = True,
+            return_exceptions: bool = False,
     ):
         if buffer_size and buffer_size > 1:
             self._transformers.append(
@@ -215,6 +405,37 @@ class Streamer:
                 return await trans_func(x, *args)
 
         return self._transform(transformer_, buffer_size=buffer_size, **kwargs)
+
+    def _sink(
+            self,
+            sink_func: Callable[[Any], Union[asyncio.Task, asyncio.Future]],
+            *,
+            buffer_size: int = None,
+            skip_exceptions: bool = False,
+    );
+        if buffer_size and buffer_size > 1:
+            return BufferedSink(
+                self._transformers[-1],
+                sink_func,
+                buffer_size=buffer_size,
+                skip_exceptions=skip_exceptions,
+            )
+        else:
+            return Sink(self._transformers[-1], sink_func, skip_exceptions=skip_exceptions)
+
+    def sink(self,
+             sink_func: Callable[[Any], Awaitable[None]],
+             *args,
+             buffe_size: int = None,
+             **kwargs):
+        if buffe_size is None or buffe_size < 2:
+            async def sink_(x):
+                await sink_func(x, *args)
+        else:
+            def sink_(x):
+                return self._loop.create_task(sink_func(x, *args))
+
+        return self._sink(sink_func, buffer_size=buffe_size, **kwargs)
 
     def __aiter__(self):
         z = self._transformers[-1]
