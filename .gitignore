@@ -102,3 +102,4 @@ ENV/
 
 # py.test
 **/.pytest_cache
+docker/_Dockerfile

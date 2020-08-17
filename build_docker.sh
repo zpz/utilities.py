@@ -8,7 +8,7 @@
 function find-latest-mini-local {
     local name=zppz/mini
 
-    local tag=$(docker images "${name}" --format "{{.Tag}}" | sort | tail -n 1) || return 1
+    local tag=$(docker images "${name}" --format "{{.Tag}}" | grep -E "^[0-9]{8}T[0-9]{6}Z$" | sort | tail -n 1) || return 1
     if [[ "${tag}" == '' ]]; then
         echo -
     else
@@ -34,7 +34,7 @@ function find-latest-mini {
         remoteimg=-
     else
         tags="$(echo $tags | sed 's/name: //g' | sed 's/results: //g')" || return 1
-        tag=$(echo "${tags}" | tr ' ' '\n' | sort -r | head -n 1) || return 1
+        tag=$(echo "${tags}" | tr ' ' '\n' | grep -E "^[0-9]{8}T[0-9]{6}Z$" | sort | tail -n 1) || return 1
         remoteimg="${name}:${tag}"
     fi
 

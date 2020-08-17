@@ -3,24 +3,22 @@ ARG PARENT
 FROM ${PARENT}
 USER root
 
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Install `daemontools` for the `multilog` program.
 RUN apt-update \
-    && DEBIAN_FRONTEND=noninteractive apt-install daemontools \
+    && apt-install daemontools \
     && apt-clean
 
 
 # Packages for code development.
 RUN apt-update \
     && apt-install gcc \
-    && DEBIAN_FRONTEND=noninteractive pip-install \
+    && pip-install \
         'line-profiler==3.0.2' \
-        'memory-profiler==0.57.0' \
-        'mypy==0.770' \
-        'pretty-errors==1.2.16' \
-        'pytest-runner==5.2' \
-        'readme-renderer[md]==25.0' \
-        'twine==3.1.1' \
+        'pretty-errors==1.2.17' \
+        'readme-renderer[md]==26.0' \
+        'twine==3.2.0' \
     && apt-remove gcc \
     && apt-clean
 
@@ -51,9 +49,9 @@ RUN apt-update \
 #    black
 #    coverage
 #    flake8
-#    pudb
 #    pyflakes
 #    radon
+#    boltons
 
 # Decided to not install Sphinx; install it in specific images where needed.
 # To generate some graphs such as class hierarchy diagrams with `Sphinx`,
@@ -61,12 +59,18 @@ RUN apt-update \
 
 
 RUN pip-install \
-        'anyio==1.3.0' \
-        'arrow==0.15.5' \
-        'avro-python3==1.9.2.1' \
-        'boltons==20.1.0' \
-        'pytz==2019.3' \
-        'toolz==0.10.0'
+        'anyio==1.4.0' \
+        'arrow==0.15.8' \
+        'avro-python3==1.10.0' \
+        'httpx==0.14.1' \
+        'orjson==3.3.0' \
+        'pretty-errors==1.2.17' \
+        'python-multipart==0.0.5' \
+        'pytz==2020.1' \
+        'starlette==0.13.8' \
+        'toolz==0.10.0' \
+        'uvicorn==0.11.8' \
+        'wheel==0.35.1'
 
 
 # Hive
