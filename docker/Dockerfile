@@ -16,8 +16,8 @@ RUN apt-update \
     && apt-install gcc \
     && pip-install \
         'line-profiler==3.0.2' \
-        'pretty-errors==1.2.17' \
         'readme-renderer[md]==26.0' \
+        'psutil==5.7.2' \
         'twine==3.2.0' \
     && apt-remove gcc \
     && apt-clean
