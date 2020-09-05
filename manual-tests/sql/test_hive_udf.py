@@ -6,7 +6,7 @@ import pathlib
 import numpy as numpy
 import pytest
 from zpz.sql.hive import Hive, HiveTable
-from zpz.sql imprt hive_udf_example, hive_udaf_example, hive_udf_args_example
+from zpz.sql import hive_udf_example, hive_udaf_example, hive_udf_args_example
 
 
 @pytest.fixture(scope='module')
@@ -227,20 +227,20 @@ def test_udf_follow_by_agg(hive, table):
             ) AS A
         GROUP BY make
         '''
-        print(sql)
+    print(sql)
 
-        hive.read(sql)
-        z = hive.fetchall_pandas()
-        z = z.sort_values(['make', 'price_total'])
-        print(z)
-        
-        # Expected result:
-        #
-        #     make   price
-        # 0   ford  6000.0
-        # 1  honda  3000.0
-        # 2  tesla  3000.0
+    hive.read(sql)
+    z = hive.fetchall_pandas()
+    z = z.sort_values(['make', 'price_total'])
+    print(z)
+    
+    # Expected result:
+    #
+    #     make   price
+    # 0   ford  6000.0
+    # 1  honda  3000.0
+    # 2  tesla  3000.0
 
-        assert len(z) == 3
-        assert z['make'].tolist() == ['ford', 'honda', 'tesla']
-        assert z['price_total'].tolist() == [6000.0, 3000.0, 3000.0]
+    assert len(z) == 3
+    assert z['make'].tolist() == ['ford', 'honda', 'tesla']
+    assert z['price_total'].tolist() == [6000.0, 3000.0, 3000.0]

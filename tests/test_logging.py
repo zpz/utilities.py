@@ -12,6 +12,6 @@ def test_logging():
     config_logger(level='debug')
     logger.debug('debug info')
     logger.info('some info')
-    logger.warn('warning!')
+    logger.warning('warning!')
     logger.error('something is wrong!')
     logger.critical('something terrible has happened!')

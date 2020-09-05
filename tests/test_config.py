@@ -6,9 +6,9 @@ def test_get():
     assert 'option 1' == conf.get('section1', 'option1')
     assert '' == conf.get('section1', 'option2')
     assert conf.get('section1', 'option3') is None
-    assert 'some value' == conf.get('section1', 'option4')
+    assert 'some value   ; comment' == conf.get('section1', 'option4')
 
-    sec = conf.section('section 2')
+    sec = conf['section 2']
     assert 'abc def' == sec.get('option1')
     assert 'abc def' == sec['option1']
 

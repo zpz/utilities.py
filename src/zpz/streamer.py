@@ -543,7 +543,7 @@ class Streamer:
             *,
             buffer_size: int = None,
             skip_exceptions: bool = False,
-    );
+    ):
         '''
         Add a "sink" at the end of the streamer, after zero or more
         "transformers".

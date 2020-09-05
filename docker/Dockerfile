@@ -16,12 +16,14 @@ RUN apt-update \
     && apt-install gcc \
     && pip-install \
         'line-profiler==3.0.2' \
-        'readme-renderer[md]==26.0' \
         'psutil==5.7.2' \
-        'twine==3.2.0' \
+        'readme-renderer[md]==26.0' \
     && apt-remove gcc \
     && apt-clean
 
+RUN pip-install \
+        'twine==3.2.0' \
+        'wheel==0.35.1'
 
 # Use `pympler` to check total memory size of a Python object.
 
@@ -61,7 +63,6 @@ RUN apt-update \
 RUN pip-install \
         'anyio==1.4.0' \
         'arrow==0.15.8' \
-        'avro-python3==1.10.0' \
         'httpx==0.14.1' \
         'orjson==3.3.0' \
         'pretty-errors==1.2.17' \
@@ -69,9 +70,14 @@ RUN pip-install \
         'pytz==2020.1' \
         'starlette==0.13.8' \
         'toolz==0.10.0' \
-        'uvicorn==0.11.8' \
-        'wheel==0.35.1'
+        'uvicorn==0.11.8'
 
+RUN pip-install \
+        'avro-python3==1.10.0' \
+        'joblib==0.16.0' \
+        'numpy==1.19.1' \
+        'pandas==1.1.1' \
+        'scikit-learn==0.23.2'
 
 # Hive
 #   sasl, thrift, thrift-sasl are required by impyla.
@@ -91,6 +97,3 @@ RUN pip-install \
 #         'thrift==0.11.0' \
 #         'thrift_sasl==0.2.1' \
 #         'impyla==0.15.0'
-
-
-

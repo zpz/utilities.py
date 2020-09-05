@@ -50,7 +50,7 @@ def numpy_to_serializable(obj):
         return {
             'numpy.scalar': {
                 'type': obj.dtype.type.__name__,
-                'value': np.asscalar(obj)
+                'value': obj.item()
             }
         }
     if isinstance(obj, dict):

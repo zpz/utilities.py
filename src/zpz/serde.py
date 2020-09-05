@@ -1,6 +1,6 @@
 import io
 
-from sklearn.externals import joblib
+import joblib
 
 
 def dump_bytes(x, compress: int = 9) -> bytes:

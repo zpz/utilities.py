@@ -3,7 +3,7 @@ import logging
 import random
 
 from zpz.streamer import Streamer
-from zpz.logger import config_logger
+from zpz.logging import config_logger
 
 logger = logging.getLogger(__name__)
 config_logger()

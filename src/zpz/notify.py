@@ -10,7 +10,7 @@ from typing import Union, Optional
 
 import arrow
 
-from .profile import Timer
+from .timer import Timer
 from .slack import post as post_to_slack
 
 
