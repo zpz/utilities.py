@@ -30,6 +30,11 @@ class SubProcessError(Exception):
         self.qualname = full_class_name(e.__class__)
         self.message = str(e)
         self.trace_back = format_exc()
+        self._args = e.args
+
+    @property
+    def args(self):
+        return self._args
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.qualname}('{self.message}'))"
