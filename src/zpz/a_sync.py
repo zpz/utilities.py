@@ -41,3 +41,7 @@ async def concurrent_gather(*tasks, max_workers=None, return_exceptions=False):
         return_exceptions=return_exceptions,
     )
 
+
+def use_uvloop():
+    import uvloop
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())

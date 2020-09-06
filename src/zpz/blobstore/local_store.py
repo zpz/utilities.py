@@ -4,13 +4,13 @@ from pathlib import Path
 import shutil
 from typing import List
 from ._store import Store
-from ..exceptions import ZpzError
+
 
 class LocalStore(Store):
     def __init__(self, home: str=None):
         if os.name != 'posix':
             import sys
-            raise ZpzError(f"`{self.__class__.__name__}` is not supported on your platform: `{sys.platform}`")
+            raise RuntimeError(f"`{self.__class__.__name__}` is not supported on your platform: `{sys.platform}`")
         if not home:
             home = str(Path.home())
         super().__init__(home)

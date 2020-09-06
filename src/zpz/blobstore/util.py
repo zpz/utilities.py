@@ -4,8 +4,6 @@ import os.path
 import string
 from typing import Callable, List, Type
 
-from ..exceptions import ZpzError
-
 
 def get_container():
     raise NotImplementedError
@@ -60,7 +58,7 @@ def make_version() -> str:
 ALNUM = string.ascii_letters + string.digits
 
 
-def is_vesion(version: str) -> bool:
+def is_version(version: str) -> bool:
     if not version:
         return False
     return (version[0] in ALNUM) and all(v in ALNUM + '._-' for v in version)
@@ -77,7 +75,7 @@ def upload_dir(
 
     if has_timestamp:
         if not has_local_timestamp(local_abs_dir):
-            raise ZpzError(f"local directory `{local_abs_dir}` does not contain timestamp file `{TIMESTAMP_FILE}`")
+            raise RuntimeError(f"local directory `{local_abs_dir}` does not contain timestamp file `{TIMESTAMP_FILE}`")
         if has_remote_timestamp(container):
             ts_local = read_local_timestamp(local_abs_dir)
             ts_remote = read_remote_timestamp(container)
@@ -101,7 +99,7 @@ def download_dir(
 
     if has_timestamp:
         if not has_remote_timestamp(container):
-            raise ZpzError(f"remote directory `{contain.pwd}` does not contain timestamp file `{TIMESTAMP_FILE}`")
+            raise RuntimeError(f"remote directory `{contain.pwd}` does not contain timestamp file `{TIMESTAMP_FILE}`")
         if has_local_timestamp(local_abs_dir):
             ts_local = read_local_timestamp(local_abs_dir)
             ts_remote = read_remote_timestamp(container)

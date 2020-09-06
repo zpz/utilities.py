@@ -4,8 +4,6 @@ from pathlib import PurePath
 import tempfile
 import uuid
 
-from .exceptions import ZpzError
-
 
 def join_path(base_dir: str, rel_path: str) -> str:
     '''
@@ -52,7 +50,7 @@ def join_path(base_dir: str, rel_path: str) -> str:
         # '../' can occur at the beginning one or more times consecutively.
         while rel_path.startswith('../'):
             if base_dir == '/':
-                raise ZpzError(f'Invalid path operation with "{base_dir_0}" and "{rel_path_0}": trying to go up beyond "/"')
+                raise ValueError(f'Invalid path operation with "{base_dir_0}" and "{rel_path_0}": trying to go up beyond "/"')
             base_dir = base_dir[:-1]
             assert not base_dir.endswith('/')
             i = base_dir.rfind('/')
@@ -63,7 +61,7 @@ def join_path(base_dir: str, rel_path: str) -> str:
     while rel_path:
         i = rel_path.find('/')
         if i == 0:
-            raise ZpzError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
+            raise ValueError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
         if i < 0:
             name = rel_path
             rel_path = ''
@@ -74,7 +72,7 @@ def join_path(base_dir: str, rel_path: str) -> str:
             base_dir = base_dir + name + '/'
 
         if all(e == '.' for e in name):
-            raise ZpzError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
+            raise ValueError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
 
     return base_dir
 

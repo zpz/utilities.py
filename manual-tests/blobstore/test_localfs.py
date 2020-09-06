@@ -5,7 +5,6 @@ import shutil
 import uuid
 
 from zpz.filesys.localfs import LocalFS
-from zpz.exceptions import ZpzError
 
 
 ROOT = str(Path.home().joinpath('tmp', str(uuid.uuid4()))) + '/'

@@ -4,7 +4,6 @@ import os.path
 import pytest
 from zpz.path import join_path, relative_path
 from zpz.path import get_temp_file
-from zpz.exceptions import ZpzError
 
 
 def test_join_path():
@@ -24,22 +23,22 @@ def test_join_path():
 
         assert join_path(base_dir, '/x/y/z.txt') == '/x/y/z.txt'
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, '../../../../../x')
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, '.././x')
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, './../x')
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, '../../x/y/../z.txt')
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, '../../x/y/./z.txt')
 
-        with pytest.raises(ZpzError) as e:
+        with pytest.raises(ValueError) as e:
             z = join_path(base_dir, '../../x/y//z.txt')
 
 

@@ -46,22 +46,26 @@ import configparser
 import os
 
 
-def read_ini_config(file_name: str,
-                    section_name: str = None,
-                    allow_no_value=True) -> dict:
+def read_ini_config_string(
+        text: str,
+        section_name: str = None,
+        allow_no_value=True) -> dict:
     """
-    Get the content of an INI-style config file (for read-only).
-
     Args:
-        file_name: config file name including path so that the file can be found
-            by this function; an absolute full path will be most reliable.
-        section_name: name of section in the INI file; if `None`, whole file is returned.
+        text: a string in the INI format.
+        section_name: name of section in `text`; if `None`, whole content is returned.
 
     The returned object works much like a `dict` thanks to the
     *mapping protocol access* capabilities in Python 3.
     """
     conf = configparser.ConfigParser(allow_no_value=allow_no_value)
-    conf.read(file_name)
+    conf.read_string(text)
     if section_name:
         return conf[section_name]
     return conf
+
+
+def read_ini_config(file_name, *args, **kwargs):
+    return read_ini_config_string(
+        open(file_name).read(), *args, **kwargs)
+

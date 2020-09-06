@@ -2,7 +2,9 @@ import io
 import json
 from typing import Union
 import zlib
+import warnings
 
+warnings.filterwarnings('ignore', category=DeprecationWarning, module='avro')
 import avro.schema
 import avro.datafile
 import avro.io

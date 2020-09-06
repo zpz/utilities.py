@@ -4,7 +4,6 @@ import os
 import shutil
 from typing import List
 from ..path import join_path
-from ..exceptions import ZpzError
 
 
 def _is_abs(path: str) -> bool:
@@ -13,7 +12,7 @@ def _is_abs(path: str) -> bool:
 
 def _assert_is_abs(path: str) -> None:
     if not _is_abs(path):
-        raise ZpzError(f"Expecting an absolute path; got '{path}'")
+        raise ValueError(f"Expecting an absolute path; got '{path}'")
 
 
 def _is_file(abs_path: str) -> bool:
@@ -22,7 +21,7 @@ def _is_file(abs_path: str) -> bool:
 
 def _assert_is_file(abs_path: str) -> None:
     if not _is_file(abs_path):
-        raise ZpzError(f"Expecting a file; got '{abs_path}'")
+        raise ValueError(f"Expecting a file; got '{abs_path}'")
 
 
 def _is_dir(abs_path: str) -> bool:
@@ -31,7 +30,7 @@ def _is_dir(abs_path: str) -> bool:
 
 def _assert_is_dir(abs_path: str) -> None:
     if not _is_dir(abs_path):
-        raise ZpzError(f"Expecting a directory; got '{abs_path}'")
+        raise ValueError(f"Expecting a directory; got '{abs_path}'")
 
 
 def _get_cp_dest(abs_source_file: str, abs_dest_path: str) -> str:
@@ -206,7 +205,7 @@ class Store(ABC):
             self._rm(abs_path)
         else:
             if not forced:
-                raise ZpzError(f"file '{self.realpath(abs_path)}' does not exist")
+                raise RuntimeError(f"file '{self.realpath(abs_path)}' does not exist")
 
     def _stat(self, abs_path: str):
         '''
@@ -221,7 +220,7 @@ class Store(ABC):
         '''
         abs_file = self.abspath(file_path)
         if not self._exists_file(abs_file):
-            raise ZpzError(f"file '{file_path}' does not exist")
+            raise RuntimeError(f"file '{file_path}' does not exist")
         return self._stat(abs_file)
 
     def _cp(self, abs_source_file: str, abs_dest_file: str) -> None:
@@ -244,7 +243,7 @@ class Store(ABC):
             if forced:
                 self._rm(abs_dest_file)
             else:
-                raise ZpzError(f"file '{self.realpath(abs_dest_file)}' already exists")
+                raise RuntimeError(f"file '{self.realpath(abs_dest_file)}' already exists")
         self._cp(abs_source_file, abs_dest_file)
 
     def _mv(self, abs_source_file: str, abs_dest_file: str) -> None:
@@ -267,7 +266,7 @@ class Store(ABC):
             if forced:
                 self._rm(abs_dest_file)
             else:
-                raise ZpzError(f"file '{self.realpath(abs_dest_file)}' already exists")
+                raise RuntimeError(f"file '{self.realpath(abs_dest_file)}' already exists")
         self._mv(abs_source_file, abs_dest_file)
 
     @abstractmethod
@@ -284,9 +283,9 @@ class Store(ABC):
             if forced:
                 self._rm(abs_dest_file)
             else:
-                raise ZpzError(f"file '{self.realpath(abs_dest_file)}' already exists")
+                raise RuntimeError(f"file '{self.realpath(abs_dest_file)}' already exists")
         if not os.path.isfile(local_abs_file):
-            raise ZpzError(f"file '{local_abs_file}' does not exist")
+            raise RuntimeError(f"file '{local_abs_file}' does not exist")
         self._put(local_abs_file, abs_dest_file)
 
     @abstractmethod
@@ -301,13 +300,13 @@ class Store(ABC):
         abs_file = self.abspath(file_path)
         _assert_is_file(abs_file)
         if not self._exists_file(abs_file):
-            raise ZpzError(f"file '{self.realpath(abs_file)}' does not exist")
+            raise RuntimeError(f"file '{self.realpath(abs_file)}' does not exist")
         local_abs_dest_file = _get_cp_dest(abs_file, local_abs_path)
         if os.path.isfile(local_abs_dest_file):
             if forced:
                 os.remove(local_abs_dest_file)
             else:
-                raise ZpzError(f"file '{local_abs_dest_file}' already exists")
+                raise RuntimeError(f"file '{local_abs_dest_file}' already exists")
         else:
             os.makedirs(os.path.dirname(local_abs_dest_file), exist_ok=True)
 
