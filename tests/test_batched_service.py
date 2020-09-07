@@ -9,7 +9,7 @@ import pytest
 
 from zpz.batched_service import VectorTransformer, BatchedService
 from zpz.logging import config_logger
-from zpz.iterate import batch_iterable
+from zpz.iterate import iterbatches
 from zpz.mp import SubProcessError
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ def do_single(service, x):
 
 def do_bulk(service, x):
     async def run():
-        tasks = [service.a_do_bulk(list(batch)) for batch in batch_iterable(x, 40)]
+        tasks = [service.a_do_bulk(list(batch)) for batch in iterbatches(x, 40)]
         y = await asyncio.gather(*tasks)
         return list(itertools.chain.from_iterable(y))
 

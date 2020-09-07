@@ -101,7 +101,7 @@ class Batcher(AsyncIterable):
         if n:
             yield batch
 
-    
+
 class Unbatcher:
     '''
     An `Unbatcher` object does the opposite of `Batcher`.

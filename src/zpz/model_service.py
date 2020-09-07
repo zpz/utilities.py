@@ -157,6 +157,7 @@ class ModelService:
                     cpus: Union[int, List[int]] = None,
                     **init_kwargs):
         # `modelet` is the class object, not instance.
+        assert not self._started
         q_in = self._q_in_out[-1]
         q_out = mp.Queue(self.max_queue_size)
         self._q_in_out.append(q_out)

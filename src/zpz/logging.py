@@ -25,6 +25,7 @@ from typing import Union, Dict
 import warnings
 
 import pytz
+import pretty_errors # Just importing will make this being used.
 
 #import os
 # raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')
@@ -95,7 +96,9 @@ def config_logger(**kwargs) -> None:
     logging.captureWarnings(True)
     warnings.filterwarnings('default', category=ResourceWarning)
     warnings.filterwarnings('default', category=DeprecationWarning)
-
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='ptpython')
+    warnings.filterwarnings('ignore', category=DeprecationWarning, module='jedi')
+    
     try:
         # Turn off annoyance in ptpython when setting DEBUG logging
         logging.getLogger('parso').setLevel(logging.ERROR)
