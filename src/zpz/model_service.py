@@ -154,29 +154,45 @@ class ModelService:
     def add_modelet(self,
                     modelet: Type[Modelet],
                     *,
-                    cpus: Union[int, List[int]] = None,
+                    cpus=None,
+                    workers: int = None,
                     **init_kwargs):
         # `modelet` is the class object, not instance.
         assert not self._started
         q_in = self._q_in_out[-1]
         q_out = mp.Queue(self.max_queue_size)
         self._q_in_out.append(q_out)
-        if cpus is None:
-            cpus = [None]
-        elif isinstance(cpus, int):
-            cpus = [None for _ in range(cpus)]
+
+        if workers:
+            # `cpus` specifies the cores for each worker.
+            # Can be `None` or `List[int]`.
+            assert workers > 0
+            cpus = [cpus for _ in range(workers)]
         else:
-            assert isinstance(cpus, (list, tuple))
+            if cpus is None:
+                # Create one worker, not pinned to any core.
+                cpus = [None]
+            else:
+                assert isinstance(cpus, list)
+                # Create as many processes as the length of `cpus`.
+                # Each element of `cpus` specifies cpu pinning for
+                # one process. `cpus` could contain repeat numbers,
+                # meaning multiple processes can be pinned to the same
+                # cpu.
+                # This provides the ultimate flexibility, e.g.
+                #    [[0, 1, 2], [0], [2, 3], [4, 5, 6], None]
+
         n_cpus = psutil.cpu_count(logical=True)
 
         for cpu in cpus:
             if cpu is None:
                 logger.info('adding modelet %s', modelet.__name__)
-                cc = None
             else:
-                assert 0 <= cpu < n_cpus
+                if isinstance(cpu, int):
+                    cpu = [cpu]
+                assert all(0 <= c < n_cpus for c in cpu)
                 logger.info('adding modelet %s at CPU %d', modelet.__name__, cpu)
-                cc = [cpu]
+
             self._modelets.append(
                 mp.Process(
                     target=modelet.run,
@@ -185,7 +201,7 @@ class ModelService:
                         'q_in': q_in,
                         'q_out': q_out, 
                         'q_err': self._q_err,
-                        'cpus': cc,
+                        'cpus': cpu,
                         **init_kwargs,
                     },
                 )
@@ -209,6 +225,9 @@ class ModelService:
             m.join()
         self._started = False
 
+        # Reset CPU affinity.
+        psutil.Process().cpu_affinity(cpus=[])
+
     def __del__(self):
         self.stop()
 
@@ -224,12 +243,14 @@ class ModelService:
                     fut.set_result(y)
                 else:
                     logger.warning('Future object is already cancelled')
+                await asyncio.sleep(0)
                 continue
 
             if not q_err.empty():
                 uid, err = q_err.get()
                 fut = futures.pop(uid)
                 fut.set_exception(err)
+                await asyncio.sleep(0)
                 continue
 
             await asyncio.sleep(0.0089)
@@ -253,5 +274,6 @@ class ModelService:
         self.start()
         return self
 
-    def __exit__(self, exc_type, ex_value, ex_traceback):
+    def __exit__(self, *args_ignore, **kwargs_ignore):
         self.stop()
+
