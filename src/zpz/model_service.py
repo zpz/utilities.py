@@ -8,6 +8,7 @@ import asyncio
 import logging
 import multiprocessing as mp
 import queue
+import time
 from abc import ABCMeta, abstractmethod
 from typing import List, Type, Union
 
@@ -22,12 +23,16 @@ logger = logging.getLogger(__name__)
 class Modelet(metaclass=ABCMeta):
     # Typically a subclass needs to enhance
     # `__init__` and implement `predict`.
-    def __init__(self, *, batch_size: int = None, batch_wait_time: float = None):
+    def __init__(self, *,
+                 batch_size: int = None, batch_wait_time: float = None,
+                 silent_errors: Tuple[Type[Exception]] = None):
         # `batch_wait_time`: seconds, may be 0.
         self.batch_size = batch_size or 0
         self.batch_wait_time = 0 if batch_wait_time is None else batch_wait_time
+        self.name = f'{self.__class__.__name__}--{mp.current_process().name}'
+        self.silent_errors = silent_errors
 
-    def __start_single(self, *, q_in, q_out, q_err):
+    def _start_single(self, *, q_in, q_out, q_err):
         batch_size = self.batch_size
         while True:
             uid, x = q_in.get()
@@ -39,66 +44,47 @@ class Modelet(metaclass=ABCMeta):
                 q_out.put((uid, y))
 
             except Exception as e:
-                logger.info(e)
+                if not self.silent_errors or not isinstance(e, self.silent_errors):
+                    logger.info(e)
                 # There are opportunities to print traceback
                 # and details later using the `SubProcessError`
                 # object. Be brief on the logging here.
                 err = SubProcessError(e)
                 q_err.put((uid, err))
 
-    def _start_batch(self, *, q_in, q_out, q_err):
+    def _start_batch(self, *, q_in, q_out, q_err, q_in_lock):
         batch_size = self.batch_size
         batch_wait_time = self.batch_wait_time
+        perf_counter = time.perf_counter
         while True:
             batch = []
             uids = []
             n = 0
-            if batch_wait_time == 0:
+            with q_in_lock:
                 uid, x = q_in.get()
                 batch.append(x)
                 uids.append(uid)
                 n += 1
+
+                time0 = perf_counter()
                 while n < batch_size:
                     try:
-                        uid, x = q_in.get_nowait()
+                        time_left = batch_wait_time - (perf_counter() - time0)
+                        uid, x = q_in.get(timeout=time_left)
                         batch.append(x)
                         uids.append(x)
                         n += 1
                     except queue.Empty:
                         break
-            else:
-                try:
-                    uid, x = q_in.get(timeout=batch_wait_time)
-                    batch.append(x)
-                    uids.append(uid)
-                    n += 1
-                except queue.Empty:
-                    uid, x = q_in.get()
-                    batch.append(x)
-                    uids.append(uid)
-                    n += 1
-                    while n < batch_size:
-                        try:
-                            uid, x = q_in.get_nowait()
-                            batch.append(x)
-                            uids.append(uid)
-                            n += 1
-                        except queue.Empty:
-                            break
-                else:
-                    while n < batch_size:
-                        try:
-                            uid, x = q_in.get(timeout=batch_wait_time)
-                            batch.append(x)
-                            uids.append(x)
-                            n += 1
-                        except queue.Empty:
-                            break
+
+
+            logger.debug('batch size %d @ %s', n, self.name)
 
             try:
                 results = self.predict(batch)
             except Exception as e:
-                logger.info(e)
+                if not self.silent_errors or not isinstance(e, self.silent_errors):
+                    logger.info(e)
                 err = SubProcessError(e)
                 for uid in uids:
                     q_err.put((uid, err))
@@ -106,13 +92,14 @@ class Modelet(metaclass=ABCMeta):
                 for uid, y in zip(uids, results):
                     q_out.put((uid, y))
 
-    def start(self, *, q_in: mp.Queue, q_out: mp.Queue, q_err: mp.Queue):
-        process_name = f'{self.__class__.__name__}--{mp.current_process().name}'
-        logger.info('%s started', process_name)
+    def start(self, *, q_in: mp.Queue, q_out: mp.Queue, q_err: mp.Queue,
+              q_in_lock: mp.Lock):
+        logger.info('%s started', self.name)
         if self.batch_size > 1:
-            self._start_batch(q_in=q_in, q_out=q_out, q_err=q_err)
+            self._start_batch(q_in=q_in, q_out=q_out, q_err=q_err,
+                              q_in_lock=q_in_lock)
         else:
-            self.__start_single(q_in=q_in, q_out=q_out, q_err=q_err)
+            self._start_single(q_in=q_in, q_out=q_out, q_err=q_err)
 
     @abstractmethod
     def predict(self, x):
@@ -127,11 +114,13 @@ class Modelet(metaclass=ABCMeta):
     @classmethod
     def run(cls, *,
             q_in: mp.Queue, q_out: mp.Queue, q_err: mp.Queue,
-            cpus: List[int] = None, **init_kwargs):
+            cpus: List[int] = None, q_in_lock: mp.Lock,
+            **init_kwargs):
         if cpus:
             psutil.Process().cpu_affinity(cpus=cpus)
         modelet = cls(**init_kwargs)
-        modelet.start(q_in=q_in, q_out=q_out, q_err=q_err)
+        modelet.start(q_in=q_in, q_out=q_out, q_err=q_err,
+                      q_in_lock=q_in_lock)
 
 
 class ModelService:
@@ -141,6 +130,7 @@ class ModelService:
         self.max_queue_size = max_queue_size or 1024
         self._q_in_out = [mp.Queue(self.max_queue_size)]
         self._q_err = mp.Queue(self.max_queue_size)
+        self._q_in_lock = []
 
         self._uid_to_futures = {}
         self._t_gather_results = None
@@ -162,6 +152,8 @@ class ModelService:
         q_in = self._q_in_out[-1]
         q_out = mp.Queue(self.max_queue_size)
         self._q_in_out.append(q_out)
+        q_in_lock = mp.Lock()
+        self._q_in_lock.append(q_in_lock)
 
         if workers:
             # `cpus` specifies the cores for each worker.
@@ -202,6 +194,7 @@ class ModelService:
                         'q_out': q_out, 
                         'q_err': self._q_err,
                         'cpus': cpu,
+                        'q_in_lock': q_in_lock,
                         **init_kwargs,
                     },
                 )
@@ -220,9 +213,11 @@ class ModelService:
             return
         if self._t_gather_results is not None and not self._t_gather_results.done():
             self._t_gather_results.cancel()
+            self._t_gather_results = None
         for m in self._modelets:
-            m.terminate()
-            m.join()
+            if m.is_alive():
+                m.terminate()
+                m.join()
         self._started = False
 
         # Reset CPU affinity.
