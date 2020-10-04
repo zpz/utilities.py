@@ -1,7 +1,7 @@
 import json
 import numpy as np
 
-from zpz.avro import dump_bytes, load_bytes, make_schema
+from coyote.avro import dump_bytes, load_bytes, make_schema
 
 
 def test_avro():

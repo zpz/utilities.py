@@ -4,7 +4,7 @@ import pytest
 import shutil
 import uuid
 
-from zpz.filesys.localfs import LocalFS
+from coyote.filesys.localfs import LocalFS
 
 
 ROOT = str(Path.home().joinpath('tmp', str(uuid.uuid4()))) + '/'

@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from zpz.streamer import Stream, Buffer, Transformer, Sink, Batcher, Unbatcher
+from coyote.streamer import Stream, Buffer, Transformer, Sink, Batcher, Unbatcher
 
 
 async def f1(x):

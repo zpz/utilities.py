@@ -2,8 +2,8 @@ from pathlib import PurePath
 import os
 import os.path
 import pytest
-from zpz.path import join_path, relative_path
-from zpz.path import get_temp_file
+from coyote.path import join_path, relative_path
+from coyote.path import get_temp_file
 
 
 def test_join_path():
@@ -45,8 +45,8 @@ def test_join_path():
 def test_relative_path():
     this = PurePath(__file__).parent
 
-    z = relative_path('../src/zpz/path.py')
-    assert z == str(this.parent.joinpath('src/zpz/path.py'))
+    z = relative_path('../src/coyote/path.py')
+    assert z == str(this.parent.joinpath('src/coyote/path.py'))
 
     p = './test_avro.py'
     z = relative_path(p)

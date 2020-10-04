@@ -2,8 +2,8 @@ import logging
 from random import randint
 from time import sleep
 
-from zpz.logging import config_logger
-from zpz.timer import timed
+from coyote.logging import config_logger
+from coyote.timer import timed
 
 
 logger = logging.getLogger(__name__)

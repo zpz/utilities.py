@@ -1,5 +1,5 @@
 '''
-This is an example UDF for Hive, to be processed by `zpz.sql.hive.make_udf` and used in tests.
+This is an example UDF for Hive, to be processed by `coyote.sql.hive.make_udf` and used in tests.
 
 UDFs should follow this example. The main points include:
 
@@ -11,7 +11,7 @@ UDFs should follow this example. The main points include:
    passes individual lines on stdin to this function. This is a reasonable pattern to used.
 
    However, if you have an existing UDF script that works but does not follow this pattern,
-   it is not necessary to modify the script. It is expected that `zpz.sql.hive.make_udf` 'just works'.
+   it is not necessary to modify the script. It is expected that `coyote.sql.hive.make_udf` 'just works'.
 
 4. `from __future__ import print_function` is recommended. If this module is written against Python 2,
    but this module needs to be imported into Python 3 code, then this import is required.

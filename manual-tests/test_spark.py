@@ -1,8 +1,8 @@
 import os
 from pytest import fixture
-from zpz.filesys.path import relative_path
+from coyote.filesys.path import relative_path
 
-from zpz.spark import PySparkSession, ScalaSparkSession, SparkSession, SparkSessionError
+from coyote.spark import PySparkSession, ScalaSparkSession, SparkSession, SparkSessionError
 
 livy_server_url = None
 

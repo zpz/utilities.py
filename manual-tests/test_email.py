@@ -1,4 +1,4 @@
-from zpz.email import Mailer
+from coyote.email import Mailer
 
 send_from = 'abc@my.com'
 send_to = 'def@gmail.com'

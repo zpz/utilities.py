@@ -7,10 +7,10 @@ from typing import List
 
 import pytest
 
-from zpz.batched_service import VectorTransformer, BatchedService
-from zpz.logging import config_logger
-from zpz.iterate import iterbatches
-from zpz.mp import SubProcessError
+from coyote.batched_service import VectorTransformer, BatchedService
+from coyote.logging import config_logger
+from coyote.iterate import iterbatches
+from coyote.mp import SubProcessError
 
 logger = logging.getLogger(__name__)
 config_logger(level='debug')

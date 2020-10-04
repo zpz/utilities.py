@@ -1,7 +1,7 @@
 import pytest
 
-from zpz.sql.athena import Athena, AthenaTable
-from zpz.sql.hive import Hive, HiveTable
+from coyote.sql.athena import Athena, AthenaTable
+from coyote.sql.hive import Hive, HiveTable
 
 
 @pytest.fixture(scope='module')

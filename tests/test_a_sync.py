@@ -1,5 +1,5 @@
 import asyncio
-from zpz.a_sync import concurrent_gather
+from coyote.a_sync import concurrent_gather
 
 import pytest
 

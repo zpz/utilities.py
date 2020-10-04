@@ -3,8 +3,8 @@ import os
 import arrow
 import pytest
 import impala
-from zpz.sql.hive import Hive, HiveTable
-from zpz.sql.athena import Athena, AthenaTable
+from coyote.sql.hive import Hive, HiveTable
+from coyote.sql.athena import Athena, AthenaTable
 
 
 @pytest.fixture(scope='module')

@@ -5,8 +5,8 @@ import pathlib
 
 import numpy as numpy
 import pytest
-from zpz.sql.hive import Hive, HiveTable
-from zpz.sql import hive_udf_example, hive_udaf_example, hive_udf_args_example
+from coyote.sql.hive import Hive, HiveTable
+from coyote.sql import hive_udf_example, hive_udaf_example, hive_udf_args_example
 
 
 @pytest.fixture(scope='module')

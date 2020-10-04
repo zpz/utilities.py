@@ -1,7 +1,7 @@
 import arrow
 import pytest
 
-from zpz.datetime import DateRange, shift_day, shift_hour
+from coyote.datetime import DateRange, shift_day, shift_hour
 
 
 

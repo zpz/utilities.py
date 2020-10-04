@@ -169,10 +169,10 @@ class PySparkSession(SparkSession):
 
         Similar concerns about dependencies apply to `run_file`.
 
-        Example (assuming it is meaningful to submit the module `zpz.spark` to Spark):
+        Example (assuming it is meaningful to submit the module `coyote.spark` to Spark):
 
             sess = PySparkSession()
-            sess.run_module('zpz.spark')
+            sess.run_module('coyote.spark')
 
         The module shoule 'define' functions, variables only; it should not actually run
         and return anything meaningful.
@@ -184,7 +184,7 @@ class PySparkSession(SparkSession):
         '''
         `file_path` the absolute path to a Python (script or module) file.
 
-        When you know the relative location of the file, refer to `zpz.path.relative_path`
+        When you know the relative location of the file, refer to `coyote.path.relative_path`
         and test case `test_file` in `tests/test_spark.py`.
 
         This returns a string, which is not supposed to be very useful.

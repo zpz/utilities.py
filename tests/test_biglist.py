@@ -3,8 +3,8 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, BiglistView
-from zpz.path import make_temp_dir
+from coyote.biglist import Biglist, BiglistView
+from coyote.path import make_temp_dir
 
 
 PATH = os.path.join(os.environ['TMPDIR'], 'test', 'biglist')
