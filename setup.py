@@ -28,7 +28,7 @@ def get_repo_name():
         folders = [v.name for v in folders if v.is_dir() and not str(v).endswith('.egg-info')]
         if len(folders) > 1:
             raise Exception('Expecting a single directory in "src/" to infer package name')
-        name = folders[0].name
+        name = folders[0]
     assert name
     return name
 

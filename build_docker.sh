@@ -63,6 +63,9 @@ fi
 cmd="$(docker run --rm ${IMG} make-proj-builder)" || exit 1
 timestamp=$(docker run --rm ${IMG} make-ts-tag)
 
-name=utilities.py
+name=coyote
 parent=zppz/py3
-bash -c "${cmd}" -- --name ${name} --parent ${parent} --timestamp ${timestamp}
+bash -c "${cmd}" -- \
+    --name ${name} \
+    --parent ${parent} \
+    --timestamp ${timestamp}
