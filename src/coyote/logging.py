@@ -25,7 +25,7 @@ from typing import Union, Dict
 import warnings
 
 import pytz
-import pretty_errors # Just importing will make this being used.
+import pretty_errors  # Just importing will make this being used.
 
 #import os
 # raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')
@@ -43,12 +43,27 @@ import pretty_errors # Just importing will make this being used.
 # logging.logProcesses = 0
 
 
+def log_level_to_str(level):
+    '''
+    `level`: `logging.DEBUG`, `logging.INFO`, etc.
+    '''
+    return logging.getLevelName(level)
+    # Return uppercase 'DEBUG', 'INFO', etc.
+
+
+def log_level_from_str(level):
+    '''
+    `level`: 'debug', 'info', etc.
+    '''
+    return getattr(logging, level.upper())
+
+
 def _make_config(
         *,
         level: Union[str, int] = 'info',
         with_process_name: bool = False,
         with_thread_name: bool = False,
-        timezone: str='US/Pacific',
+        timezone: str = 'US/Pacific',
         **kwargs) -> Dict:
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING,
@@ -69,7 +84,8 @@ def _make_config(
 
     datefmt = '%Y-%m-%d %H:%M:%S'
 
-    msg = '[%(asctime)s.%(msecs)03d ' + timezone + '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
+    msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
+        '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
 
     if with_process_name:
         if with_thread_name:
@@ -96,9 +112,11 @@ def config_logger(**kwargs) -> None:
     logging.captureWarnings(True)
     warnings.filterwarnings('default', category=ResourceWarning)
     warnings.filterwarnings('default', category=DeprecationWarning)
-    warnings.filterwarnings('ignore', category=DeprecationWarning, module='ptpython')
-    warnings.filterwarnings('ignore', category=DeprecationWarning, module='jedi')
-    
+    warnings.filterwarnings(
+        'ignore', category=DeprecationWarning, module='ptpython')
+    warnings.filterwarnings(
+        'ignore', category=DeprecationWarning, module='jedi')
+
     try:
         # Turn off annoyance in ptpython when setting DEBUG logging
         logging.getLogger('parso').setLevel(logging.ERROR)

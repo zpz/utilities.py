@@ -6,6 +6,9 @@ import traceback
 logger = logging.getLogger(__name__)
 
 
+IO_WORKERS = min(32, multiprocessing.cpu_count() + 4)
+
+
 def create_loud_task(*args, **kwargs):
     def done_callback(t):
         if t.cancelled():
@@ -27,7 +30,7 @@ def create_loud_task(*args, **kwargs):
 
 async def concurrent_gather(*tasks, max_workers=None, return_exceptions=False):
     if max_workers is None:
-        max_workers = multiprocessing.cpu_count() * 4
+        max_workers = IO_WORKERS
         # This default is suitable for I/O bound operations.
         # For others, user may need to customize this value.
     semaphore = asyncio.Semaphore(max_workers)

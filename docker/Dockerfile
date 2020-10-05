@@ -53,7 +53,6 @@ RUN pip-install \
 #    flake8
 #    pyflakes
 #    radon
-#    boltons
 
 # Decided to not install Sphinx; install it in specific images where needed.
 # To generate some graphs such as class hierarchy diagrams with `Sphinx`,
@@ -61,23 +60,25 @@ RUN pip-install \
 
 
 RUN pip-install \
-        'anyio==1.4.0' \
-        'arrow==0.15.8' \
-        'httpx==0.14.1' \
-        'orjson==3.3.0' \
-        'pretty-errors==1.2.17' \
-        'python-multipart==0.0.5' \
+        'anyio==2.0.2' \
+        'arrow==0.16.0' \
+        'boltons==20.2.1' \
+        'orjson==3.4.0' \
+        'pretty-errors==1.2.18' \
         'pytz==2020.1' \
-        'starlette==0.13.8' \
-        'toolz==0.10.0' \
-        'uvicorn==0.11.8'
+        'toolz==0.11.1'
 
 RUN pip-install \
         'avro-python3==1.10.0' \
-        'joblib==0.16.0' \
-        'numpy==1.19.1' \
-        'pandas==1.1.1' \
+        'numpy==1.19.2' \
+        'pandas==1.1.2' \
         'scikit-learn==0.23.2'
+
+RUN pip-install \
+        'httpx==0.15.5' \
+        'python-multipart==0.0.5' \
+        'starlette==0.13.8' \
+        'uvicorn==0.12.1'
 
 # Hive
 #   sasl, thrift, thrift-sasl are required by impyla.
@@ -97,3 +98,12 @@ RUN pip-install \
 #         'thrift==0.11.0' \
 #         'thrift_sasl==0.2.1' \
 #         'impyla==0.15.0'
+
+
+# MySQL
+RUN apt-update \
+    && apt-install gcc \
+    && apt-install libmysqlclient21 libmysqlclient-dev \
+    && pip-install 'mysqlclient==2.0.1' \
+    && apt-remove libmysqlclient-dev gcc
+

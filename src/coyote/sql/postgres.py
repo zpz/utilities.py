@@ -1,44 +1,14 @@
 import logging
-from typing import List, Tuple, Callable
+from typing import List, Tuple
 
 import psycopg2
 
-from .sql import SQLClient
+from .sql import SQLClient, Connection
 
 logger = logging.getLogger(__name__)
 
 
-class Postgres(SQLClient):
-    def __init__(self, *, host: str, user: str, password: str, dbname: str, port: int=5432, **kwargs):
-        super().__init__(
-            conn_func=psycopg2.connect,
-            host=host,
-            user=user,
-            password=password,
-            dbname=dbname,
-            port=port,
-            **kwargs)
-
-    @property
-    def closed(self):
-        return self._conn.closed
-
-    @property
-    def connected(self):
-        return not self.closed
-
-    def reconnect(self):
-        if self.closed:
-            self._connect()
-
-    def rollback(self):
-        '''Call this after `write` but before `commit` to cancel the write.'''
-        self._conn.rollback()
-
-    def commit(self):
-        '''Call this after `write`.'''
-        self._conn.commit()
-
+class PgConnection(Connection):
     def get_databases(self) -> List[str]:
         sql = "SELECT datname FROM pg_database WHERE datistemplate = false"
         headers, rows = self.read(sql).fetchall()
@@ -76,3 +46,30 @@ class Postgres(SQLClient):
             tb_name)
         rows = self.read(sql).fetchall()
         return [v[0] for v in rows]
+
+
+class Postgres(SQLClient):
+    CONNECTION_CLASS = PgConnection
+
+    def __init__(self,
+                 *,
+                 user: str,
+                 password: str,
+                 db: str,
+                 host: str,
+                 port: int = 5432,
+                 ):
+        self.user = user
+        self.password = password
+        self.db = db
+        self.host = host
+        self.port = port
+
+    def connect(self):
+        return psycopg2.connect(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            dbname=self.db,
+        )

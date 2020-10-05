@@ -10,7 +10,7 @@ import multiprocessing as mp
 import queue
 import time
 from abc import ABCMeta, abstractmethod
-from typing import List, Type, Union
+from typing import List, Type, Union, Tuple
 
 import psutil
 
@@ -183,7 +183,7 @@ class ModelService:
                 if isinstance(cpu, int):
                     cpu = [cpu]
                 assert all(0 <= c < n_cpus for c in cpu)
-                logger.info('adding modelet %s at CPU %d', modelet.__name__, cpu)
+                logger.info('adding modelet %s at CPU %s', modelet.__name__, cpu)
 
             self._modelets.append(
                 mp.Process(

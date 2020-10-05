@@ -87,3 +87,9 @@ def timed(print_func: Callable=None) -> Callable:
     return decorator
 
 
+def timed_call(func, *args, **kwargs):
+    t0 = time.perf_counter()
+    z = func(*args, **kwargs)
+    seconds = time.perf_counter() - t0
+    return z, seconds
+

@@ -9,7 +9,7 @@ import warnings
 from impala import dbapi
 from retrying import retry
 
-from .sql import split_sql, SQLClient
+from .sql import SQLClient
 from ..s3 import Bucket
 
 logging.getLogger('impala.hiveserver2').setLevel(logging.WARNING)
@@ -24,12 +24,12 @@ class Hive(SQLClient):
                  user: str,
                  password: str,
                  host: str,
-                 port: int=10000,
-                 dynamic_partition: bool=True,
-                 configuration: dict=None):
+                 port: int = 10000,
+                 dynamic_partition: bool = True,
+                 configuration: dict = None):
         '''
         `configuration` is a dict containing things you would otherwise write as
-            
+
             set abc=def;
             set jkl=xyz;
 
@@ -88,7 +88,8 @@ class Hive(SQLClient):
     def read(self, sql: str):
         sqls, config = self._parse_sql(sql)
         if len(sqls) > 1:
-            warnings.warn('Executing more than one SQL statement by `Hive.read`')
+            warnings.warn(
+                'Executing more than one SQL statement by `Hive.read`')
             sql = ';\n'.join(sqls)
         else:
             sql = sqls[0]
@@ -132,19 +133,20 @@ class Hive(SQLClient):
 
 class HiveTableMixin:
     def __init__(self, *,
-            db_name: str,
-            tb_name: str,
-            columns: List[Tuple[str, str]],
-            partitions: List[Tuple[str,str]]=None,
-            stored_as: str='ORC',
-            field_delimiter: str='\\t',
-            compression: str='ZLIB',
-            location: str=None) -> None:
+                 db_name: str,
+                 tb_name: str,
+                 columns: List[Tuple[str, str]],
+                 partitions: List[Tuple[str, str]] = None,
+                 stored_as: str = 'ORC',
+                 field_delimiter: str = '\\t',
+                 compression: str = 'ZLIB',
+                 location: str = None) -> None:
         self.db_name = db_name
         self.tb_name = tb_name
         self.columns = [(name, type_.upper()) for (name, type_) in columns]
         if partitions:
-            self.partitions = [(name, type_.upper()) for (name, type_) in partitions]
+            self.partitions = [(name, type_.upper())
+                               for (name, type_) in partitions]
         else:
             self.partitions = []
 
@@ -161,12 +163,12 @@ class HiveTableMixin:
             loc = self.location
             if loc.startswith('s3://') or loc.startswith('s3n://'):
                 if loc.startswith('s3://'):
-                    z = self.location[len('s3://') :]
+                    z = self.location[len('s3://'):]
                 else:
-                    z = self.location[len('s3n://') :]
+                    z = self.location[len('s3n://'):]
                 assert '/' in z
                 self._s3_bucket_key = z[: z.find('/')]
-                self._s3_bucket_path = z[(z.find('/') + 1) :]
+                self._s3_bucket_path = z[(z.find('/') + 1):]
                 self.s3external = True
             self.external = True
 
@@ -174,7 +176,7 @@ class HiveTableMixin:
     def full_name(self):
         return self.db_name + '.' + self.tb_name
 
-    def create(self, engine, drop_if_exists: bool=False) -> None:
+    def create(self, engine, drop_if_exists: bool = False) -> None:
         '''
         `engine` is a `Hive` or `Athena` object.
         '''
@@ -281,7 +283,8 @@ class HiveTableMixin:
             sql = f"ALTER TABLE {self.full_name} DROP IF EXISTS PARTITION({cond_str})"
             engine.write(sql)
         else:
-            logger.warning(f'dropping all partitions in table {self.full_name}')
+            logger.warning(
+                f'dropping all partitions in table {self.full_name}')
             parts = self.get_partitions(engine)
             for p in parts:
                 cond_str = p.split('/')[0]
@@ -306,7 +309,8 @@ class HiveTableMixin:
             root = self.location
         else:
             parts_path_str = self._partition_values_to_path(*partition_values)
-            parts_cond_str = self._partition_values_to_condition(*partition_values)
+            parts_cond_str = self._partition_values_to_condition(
+                *partition_values)
             root = self.location + parts_path_str + '/'
 
         bucket = Bucket(self._s3_bucket_key)
@@ -319,13 +323,15 @@ class HiveTableMixin:
                 engine.write(sql)
             return
 
-        dirs = set(v[: v.rfind('/')] for v in files if '/' in v)  # no trailing '/'
+        dirs = set(v[: v.rfind('/')]
+                   for v in files if '/' in v)  # no trailing '/'
         for dd in dirs:
             path_str = dd
             if partition_values:
                 path_str = parts_path_str + '/' + path_str
             if path_str not in existing_partitions:
-                cond_str = ', '.join(f"{k}='{v}'" for k,v in (v.split('=') for v in dd.split('/')))
+                cond_str = ', '.join(f"{k}='{v}'" for k, v in (
+                    v.split('=') for v in dd.split('/')))
                 if partition_values:
                     cond_str = parts_cond_str + ', ' + cond_str
                 sql = f'''ALTER TABLE {self.full_name} ADD PARTITION({cond_str}) LOCATION '{self.location + path_str}' '''
@@ -342,7 +348,8 @@ class HiveTableMixin:
             raise NotImplementedError
         if not partition_values:
             return self.location
-        path = self.location + self._partition_values_to_path(*partition_values) + '/'
+        path = self.location + \
+            self._partition_values_to_path(*partition_values) + '/'
         return path
 
     def purge_data(self, *partition_values) -> int:
@@ -354,12 +361,12 @@ class HiveTableMixin:
 
 
 class HiveTable(HiveTableMixin):
-    def __init__(self, location: str=None, **kwargs) -> None:
+    def __init__(self, location: str = None, **kwargs) -> None:
         if location:
             assert location.startswith('s3n://')
         super().__init__(**kwargs, location=location)
 
-    def to_athena_table(self, db_name: str, tb_name: str=None) -> 'AthenaTable':
+    def to_athena_table(self, db_name: str, tb_name: str = None) -> 'AthenaTable':
         '''
         Use case of this method:
 
@@ -380,7 +387,7 @@ class HiveTable(HiveTableMixin):
         assert self.s3external
         location = self.location
         if location.startswith('s3n://'):
-            location = 's3://' + location[len('s3n://') :]
+            location = 's3://' + location[len('s3n://'):]
         return AthenaTable(
             db_name=db_name,
             tb_name=tb_name or self.tb_name,
@@ -392,14 +399,14 @@ class HiveTable(HiveTableMixin):
             location=location)
 
     @classmethod
-    def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str=None) -> 'HiveTable':
+    def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str = None) -> 'HiveTable':
         '''
         Use case is analogous to `to_athena_table`.
         '''
         assert table.s3external
         location = table.location
         if location.startswith('s3://'):
-            location = 's3n://' + location[len('s3://') :]
+            location = 's3n://' + location[len('s3://'):]
         return cls(
             db_name=db_name,
             tb_name=tb_name or table.tb_name,
@@ -411,7 +418,7 @@ class HiveTable(HiveTableMixin):
             location=location)
 
 
-def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str='python') -> str:
+def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str = 'python') -> str:
     '''
     This function takes a Python module or a code string,
     encodes it into a byte string, which is suitable for transmission over the Internet,
