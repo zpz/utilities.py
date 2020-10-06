@@ -77,7 +77,6 @@ class Modelet(metaclass=ABCMeta):
                     except queue.Empty:
                         break
 
-
             logger.debug('batch size %d @ %s', n, self.name)
 
             try:
@@ -183,7 +182,8 @@ class ModelService:
                 if isinstance(cpu, int):
                     cpu = [cpu]
                 assert all(0 <= c < n_cpus for c in cpu)
-                logger.info('adding modelet %s at CPU %s', modelet.__name__, cpu)
+                logger.info('adding modelet %s at CPU %s',
+                            modelet.__name__, cpu)
 
             self._modelets.append(
                 mp.Process(
@@ -191,7 +191,7 @@ class ModelService:
                     name=f'modelet-{cpu}',
                     kwargs={
                         'q_in': q_in,
-                        'q_out': q_out, 
+                        'q_out': q_out,
                         'q_err': self._q_err,
                         'cpus': cpu,
                         'q_in_lock': q_in_lock,
@@ -271,4 +271,3 @@ class ModelService:
 
     def __exit__(self, *args_ignore, **kwargs_ignore):
         self.stop()
-

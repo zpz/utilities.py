@@ -4,12 +4,14 @@ import random
 
 import pytest
 
-from coyote.streamer import Stream, Buffer, Transformer, Sink, Batcher, Unbatcher
+from coyote.streamer import (
+    Stream, Buffer, Transformer, EagerTransformer,
+    Sink, Batcher, Unbatcher)
 
 
 async def f1(x):
     await asyncio.sleep(random.random() * 0.01)
-    return x +  3.8
+    return x + 3.8
 
 
 async def f2(x):
@@ -26,6 +28,15 @@ async def test_transformer():
     s = Transformer(Stream(SYNC_INPUT), f1)
     got = [v async for v in s]
     assert got == expected
+
+
+@pytest.mark.asyncio
+async def test_eagertransformer():
+    expected = [v + 3.8 for v in SYNC_INPUT]
+    s = EagerTransformer(Stream(SYNC_INPUT), f1)
+    got = [v async for v in s]
+    assert got != expected
+    assert sorted(got) == expected
 
 
 def generate_data():
@@ -65,10 +76,10 @@ async def test_chain():
 async def test_buffer():
     expected = [(v + 3.8) * 2 for v in SYNC_INPUT]
     s = Transformer(
-            Transformer(
-                Buffer(Stream(SYNC_INPUT)),
-                f1),
-            f2)
+        Transformer(
+            Buffer(Stream(SYNC_INPUT)),
+            f1),
+        f2)
     got = [v async for v in s]
     assert got == expected
 

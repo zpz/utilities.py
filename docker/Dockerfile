@@ -66,6 +66,7 @@ RUN pip-install \
         'orjson==3.4.0' \
         'pretty-errors==1.2.18' \
         'pytz==2020.1' \
+        'tenacity==6.2.0' \
         'toolz==0.11.1'
 
 RUN pip-install \

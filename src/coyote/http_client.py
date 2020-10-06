@@ -4,6 +4,9 @@ from time import perf_counter
 
 import httpcore
 import httpx
+from tenacity import (
+    retry, stop_after_attempt,
+    wait_random_exponential, retry_if_exception_type)
 
 from .json import (
     orjson_dumps, orjson_loads,
@@ -34,7 +37,7 @@ class ClientTimeout(httpx.Timeout):
         super().__init__(
             timeout=timeout,
             connect=connect or timeout,
-            read=read or timeout,
+            read=read or timeout * 5,
             write=write or timeout,
         )
 
@@ -46,6 +49,37 @@ class AsyncClientSession(httpx.AsyncClient):
         super().__init__(timeout=timeout, **kwargs)
 
 
+@retry(
+    stop=stop_after_attempt(10),
+    wait=wait_random_exponential(multiplier=1, max=60),
+    retry=retry_if_exception_type((
+        httpx.TimeoutException, httpcore.TimeoutException,
+        httpx.RemoteProtocolError, httpcore.RemoteProtocolError,
+    ))
+)
+async def _a_request(func, url, **Kwargs):
+    time0 = perf_counter()
+    try:
+        response = await func(url, **kwargs)
+        return response
+    except (httpx.TimeoutException, httpcore.TimeoutException) as e:
+        time1 = perf_counter()
+        timeout_duration = time1 - time0
+        logger.error(
+            "HTTP request timed out after %d seconds with %s: %s",
+            timeout_duration, e.__class__.__name__, str(e)
+        )
+        raise
+    except (httpx.RemoteProtocolError, httpcore.RemoteProtocolError) as e:
+        time1 = perf_counter()
+        timeout_duration = time1 - time0
+        logger.error(
+            "HTTP request failed out after %d seconds with %s: %s",
+            timeout_duration, e.__class__.__name__, str(e)
+        )
+        raise
+
+
 async def a_rest_request(
         url,
         method,
@@ -55,7 +89,8 @@ async def a_rest_request(
         payload_type: str = 'json',
         ignore_client_error: bool = False,
         ignore_server_error: bool = False,
-        **kwargs):
+        **kwargs,
+):
     '''
     `payload`: a Python native type, usually dict.
     '''
@@ -90,14 +125,7 @@ async def a_rest_request(
     kwargs = {**args, **kwargs}
     kwargs['headers'] = {'content-type': 'application/' + payload_type}
 
-    time0 = perf_counter()
-    try:
-        response = await func(url, **kwargs)
-    except (httpx.PoolTimeout, httpcore.PoolTimeout):
-        time1 = perf_counter()
-        timeout_duration = time1 - time0
-        logger.error('timed out after %d seconds', timeout_duration)
-        raise
+    response = await _a_request(func, url, **kwargs)
 
     response_content_type = response.headers['content-type']
     if response_content_type.starswith('text/plain'):

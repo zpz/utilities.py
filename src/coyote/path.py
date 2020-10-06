@@ -26,7 +26,8 @@ def join_path(base_dir: str, rel_path: str) -> str:
     See the corresponding tests about the expected behaviors of this function in various
     scenarios.
     '''
-    assert isinstance(base_dir, str) and base_dir.startswith('/') and isinstance(rel_path, str)
+    assert isinstance(base_dir, str) and base_dir.startswith(
+        '/') and isinstance(rel_path, str)
     if rel_path in ['', '.', './']:
         return base_dir
 
@@ -50,7 +51,8 @@ def join_path(base_dir: str, rel_path: str) -> str:
         # '../' can occur at the beginning one or more times consecutively.
         while rel_path.startswith('../'):
             if base_dir == '/':
-                raise ValueError(f'Invalid path operation with "{base_dir_0}" and "{rel_path_0}": trying to go up beyond "/"')
+                raise ValueError(
+                    f'Invalid path operation with "{base_dir_0}" and "{rel_path_0}": trying to go up beyond "/"')
             base_dir = base_dir[:-1]
             assert not base_dir.endswith('/')
             i = base_dir.rfind('/')
@@ -61,18 +63,20 @@ def join_path(base_dir: str, rel_path: str) -> str:
     while rel_path:
         i = rel_path.find('/')
         if i == 0:
-            raise ValueError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
+            raise ValueError(
+                f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
         if i < 0:
             name = rel_path
             rel_path = ''
             base_dir = base_dir + name
         else:
             name = rel_path[:i]
-            rel_path = rel_path[(i+1) :]
+            rel_path = rel_path[(i+1):]
             base_dir = base_dir + name + '/'
 
         if all(e == '.' for e in name):
-            raise ValueError(f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
+            raise ValueError(
+                f'Invalid operation with "{base_dir_0}" and "{rel_path_0}""')
 
     return base_dir
 
@@ -98,7 +102,7 @@ def relative_path(path: str) -> str:
     return join_path(str(p), path)
 
 
-def get_temp_file(dir: str=None, ext: str='') -> str:
+def get_temp_file(dir: str = None, ext: str = '') -> str:
     '''
     Get a temporary file name. The file does not exist, and is not created.
 
