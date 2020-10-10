@@ -1,6 +1,6 @@
 import math
 
-from zpz import profile
+from coyote import profile
 
 
 @profile.profiled()

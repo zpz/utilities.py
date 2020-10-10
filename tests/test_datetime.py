@@ -1,8 +1,30 @@
 import arrow
 import pytest
+import shutil
+from pathlib import Path
 
-from zpz.datetime import DateRange, shift_day, shift_hour
+from coyote.datetime import (
+    DateRange, shift_day, shift_hour,
+    write_timestamp, TIMESTAMP_FILE, read_timestamp, has_timestamp)
 
+
+def test_write_timestamp():
+    p = Path('/tmp/test_datetime')
+    if p.exists():
+        shutil.rmtree(str(p))
+
+    write_timestamp(p)
+    assert (p / TIMESTAMP_FILE).exists()
+    ts = open(p / TIMESTAMP_FILE).read()
+    assert has_timestamp(p)
+    assert read_timestamp(p) == ts
+    shutil.rmtree(str(p))
+
+    p = str(p)
+    write_timestamp(p)
+    assert (Path(p) / TIMESTAMP_FILE).exists()
+    assert has_timestamp(p)
+    shutil.rmtree(str(p))
 
 
 def test_shift_day():
@@ -29,25 +51,16 @@ def test_daterange():
     assert dr.days == ['2018-02-20', '2018-02-21', '2018-02-22']
 
     last_day = arrow.utcnow().shift(days=-1).floor('day')
-    dr = DateRange(n_days=3)
+    dr = DateRange(n_days=3, end_date='yesterday')
     assert dr.days == [
         last_day.shift(days=i).format('YYYY-MM-DD') for i in (-2, -1, 0)
     ]
-    dr = DateRange(min_days=3)
-    assert dr.days == [
-        last_day.shift(days=i).format('YYYY-MM-DD') for i in (-2, -1, 0)
-    ]
-
-    with pytest.raises(AssertionError) as e:
-        dr = DateRange(
-            start_date=last_day.shift(days=-3).format('YYYY-MM-DD'),
-            min_days=10)
 
     last_day = arrow.utcnow().shift(days=-1).floor('day')
-    dr = DateRange(n_days=20)
+    dr = DateRange(n_days=20, end_date='yesterday')
     days = [
         last_day.shift(days=-n).format('YYYY-MM-DD')
         for n in reversed(range(20))
     ]
-    for got, wanted in zip(dr, days):
+    for got, wanted in zip(dr.days, days):
         assert got.format('YYYY-MM-DD') == wanted

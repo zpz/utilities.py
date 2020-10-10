@@ -22,7 +22,7 @@ clean: FORCE
 	rm -rf build
 	rm -rf src/python/*egg-info
 	rm -rf .pytest_cache
-	pip uninstall zpz -y
+	pip uninstall coyote -y
 
 
 FORCE:

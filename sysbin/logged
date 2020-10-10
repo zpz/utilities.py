@@ -43,7 +43,7 @@ args="$@"
 : "${DATADIR:?Environment variable \'DATADIR\' is not set}"
 
 # About logging, please refer to
-#  http://zpz.github.io/log-rotation-of-stdout/
+#  http://coyote.github.io/log-rotation-of-stdout/
 
 function mlog {
     if [[ "${silent}" == yes ]]; then

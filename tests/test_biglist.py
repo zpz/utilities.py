@@ -3,8 +3,8 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, ListView
-from zpz.exceptions import ZpzError
+from coyote.biglist import Biglist, BiglistView
+from coyote.path import make_temp_dir
 
 
 PATH = os.path.join(os.environ['TMPDIR'], 'test', 'biglist')
@@ -45,9 +45,14 @@ def test_existing_numbers():
     assert list(mylist) == data
 
     rmtree(PATH)
-    
 
-def _test_listview(datalv):
+
+def test_view():
+    bl = Biglist()
+    bl.extend(range(20))
+    bl.flush()
+    datalv = bl.view()
+
     data = list(range(20))
     assert list(datalv) == data
 
@@ -55,16 +60,10 @@ def _test_listview(datalv):
     assert datalv[17] == data[17]
 
     lv = datalv[:9]
-    assert isinstance(lv, ListView)
+    assert isinstance(lv, BiglistView)
     assert list(lv) == data[:9]
     assert lv[-1] == data[8]
     assert lv[3] == data[3]
-
-    n = 0
-    for batch in lv.batches(4):
-        k = len(batch)
-        assert list(batch) == data[n : (n+k)]
-        n += k
 
     lv = lv[:2:-2]
     assert list(lv) == data[8:2:-2]
@@ -82,18 +81,32 @@ def _test_listview(datalv):
     assert lv[2] == data[-5]
     assert list(lv[::-3]) == data[1::6]
 
-    n = 19
-    for batch in lv.batches(3):
-        k = len(batch)
-        assert list(batch) == data[n : (n - 2*k + 1) : -2]
-        n = n - k*2
+
+def test_move():
+    bl = Biglist(batch_size=4)
+    bl.extend(range(17))
+
+    newpath = make_temp_dir()
+    rmtree(newpath)
+    bl.move(newpath)
+
+    assert bl.path == newpath
+    assert list(bl) == list(range(17))
+
+    bl.destroy()
 
 
-def test_listview():
-    _test_listview(ListView(list(range(20))))
+def test_fileview():
+    bl = Biglist(batch_size=4)
+    bl.extend(range(22))
+    bl.flush()
+    assert len(bl.file_lengths) == 6
 
+    assert list(bl.fileview(1)) == [4, 5, 6, 7]
 
-def test_biglistview():
-    mylist = Biglist(batch_size=7)
-    mylist.extend(range(20))
-    _test_listview(mylist.view)
+    vs = bl.fileviews()
+    list(vs[2]) == [8, 9, 10, 11]
+
+    vvs = vs[2][1:3]
+    assert list(vvs) == [9, 10]
+
