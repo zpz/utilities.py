@@ -1,13 +1,15 @@
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pprint import pprint
 from typing import List, Iterable
 
+import aioodbc
 import MySQLdb as mysqlclient
 from boltons.iterutils import chunked_iter
 
-from .sql import SQLClient, Connection
+from .sql import SQLClient, Connection, AsyncConnection
 from ..a_sync import IO_WORKERS
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,9 @@ class MysqlConnection(Connection):
                      *,
                      tb_name: str,
                      cols: List[str]) -> int:
+        if hasattr(rows, '__len__'):
+            assert len(rows) <= 10000
+
         columns_str = ", ".join(cols)
         symbol = "%s"
         val_place_holders = ", ".join([symbol] * (len(cols)))
@@ -56,20 +61,51 @@ class MysqlConnection(Connection):
         return int(z[0][0])
 
 
+class MysqlAsyncConnection(AsyncConnection):
+    async def insert_batch(self,
+                           rows: Iterable[Iterable[str]],
+                           *,
+                           tb_name: str,
+                           cols: List[str]) -> int:
+        if hasattr(rows, '__len__'):
+            assert len(rows) <= 10000
+
+        columns_str = ", ".join(cols)
+        symbol = "?"
+        val_place_holders = ",".join([symbol] * len(cols))
+
+        try:
+            await self._cursor.executemany(
+                f"INSERT INTO {tb_name} ({columns_str}) VALUES ({val_place_holders})",
+                rows,
+            )
+        except Exception as e:
+            logger.exception(e)
+            print('data rows:')
+            for row in rows:
+                print(row)
+            raise
+
+        return self._cursor.rowcount
+        # This may not be the number of rows inserted.
+        # The meaning depends on the MySQL client package.
+
+
 class MySQL(SQLClient):
     CONNECTION_CLASS = MysqlConnection
+    ASYNCCONNECTION_CLASS = MysqlAsyncConnection
 
     def __init__(self,
                  *,
                  user: str,
                  password: str,
-                 db: str,
+                 database: str,
                  host: str,       # MySQL server url
                  port: int = 3306,
                  ):
         self.user = user
         self.password = password
-        self.db = db
+        self.database = database
         self.host = host
         self.port = port
 
@@ -84,6 +120,19 @@ class MySQL(SQLClient):
         conn.autocommit(True)
         return conn
 
+    async def a_connect(self):
+        config = {
+            'Driver': 'MySQL ODBC 8.0 Unicode Driver',
+            'SERVER': self.host,
+            'DATABASE': self.database,
+            'UID': self.user,
+            'PASSWORD': self.password,
+            'timeout': 0,
+            'autocommit': True,
+        }
+        dsn = ';'.join(f'{k}={v}' for k, v in config.items())
+        return await aioodbc.connect(dsn=dsn, autocommit=True)
+
     def insert_stream(self,
                       rows: Iterable,
                       *,
@@ -93,6 +142,7 @@ class MySQL(SQLClient):
                       log_every_n_batches: int = 1,
                       max_concurrency: int = None,
                       ) -> int:
+        assert batch_size <= 10000
         max_conn = max_concurrency or IO_WORKERS
 
         with self.get_connection_pool(max_conn) as pool:

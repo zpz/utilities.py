@@ -1,8 +1,8 @@
 import logging
 import time
 from abc import ABCMeta, abstractmethod
-from contextlib import contextmanager
-from typing import Union, Sequence, List, Callable, Type
+from contextlib import contextmanager, asynccontextmanager
+from typing import Union, Sequence, List, Type
 
 import pandas as pd
 
@@ -13,9 +13,9 @@ class Connection:
     def __init__(self, cursor):
         self._cursor = cursor
 
-    def _execute_(self, sql):
+    def _execute_(self, sql, **kwargs):
         logger.debug('executing SQL statement\n%s', sql)
-        self._cursor.execute(sql)
+        self._cursor.execute(sql, **kwargs)
 
     def _execute(self, sql: str, **kwargs) -> None:
         try:
@@ -82,7 +82,7 @@ class Connection:
         An Error (or subclass) exception is raised if the previous call to 
         ``read`` did not produce any result set or no call to ``read`` was issued yet.
         """
-        return self._cursor.fetchmany(n or self._cursor.arraysize)
+        return self._cursor.fetchmany(n)
 
     def fetchmany_pandas(self, n: int):
         rows = self.fetchmany(n)
@@ -104,7 +104,7 @@ class Connection:
     def fetchall_pandas(self):
         """
         This method is called after ``read`` to fetch the results as a ``pandas.DataFrame``.
-         
+
         Warning: do not use this if the result contains a large number of rows.
         """
         rows = self.fetchall()
@@ -118,7 +118,7 @@ class Connection:
 
 class ConnectionPool:
     def __init__(self,
-                 connect_func: Callable,
+                 connect_func,
                  maxsize: int,
                  connection_cls: Type[Connection]):
         self._connect_func = connect_func
@@ -158,8 +158,75 @@ class ConnectionPool:
             conn.close()
 
 
+class AsyncConnection:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    async def _execute_(self, sql, **kwargs):
+        logger.debug('executing SQL statement\n%s', sql)
+        await self._cursor.execute(sql, **kwargs)
+
+    async def _execute(self, sql: str, **kwargs) -> None:
+        try:
+            await self._execute_(sql, **kwargs)
+        except:
+            msg = f'Failed to execute SQL\n{sql}'
+            logger.exception(msg)
+            raise
+
+    async def read(self, sql: str, **kwargs):
+        await self._execute(sql, **kwargs)
+        return self
+
+    async def iterrows(self):
+        return iter(self._cursor)
+
+    async def iterbatches(self, batch_size: int):
+        while True:
+            rows = await self.fetchmany(batch_size)
+            if rows:
+                yield rows
+            else:
+                break
+
+    @property
+    def headers(self) -> List[str]:
+        return [x[0] for x in self._cursor.description]
+
+    async def fetchone(self) -> Union[Sequence[str], None]:
+        return await self._cursor.fetchone()
+
+    async def fetchone_pandas(self):
+        row = await self.fetchone()
+        if not row:
+            return pd.DataFrame(columns=self.headers)
+        return pd.DataFrame.from_records([row], columns=self.headers)
+
+    async def fetchmany(self, n: int) -> Sequence[Sequence[str]]:
+        return await self._cursor.fetchmany(n)
+
+    async def fetchmany_pandas(self, n: int):
+        rows = await self.fetchmany(n)
+        if not rows:
+            return pd.DataFrame(columns=self.headers)
+        return pd.DataFrame.from_records(rows, columns=self.headers)
+
+    async def fetchall(self) -> Sequence[Sequence[str]]:
+        return await self._cursor.fetchall()
+
+    async def fetchall_pandas(self):
+        rows = await self.fetchall()
+        if not rows:
+            return pd.DataFrame(columns=self.headers)
+        return pd.DataFrame.from_records(list(rows), columns=self.headers)
+
+    async def write(self, sql: str):
+        await self._execute(sql)
+
+
 class SQLClient(metaclass=ABCMeta):
     CONNECTION_CLASS: Type[Connection] = Connection
+    ASYNCCONNECTION_CLASS: Type[AsyncConnection] = AsyncConnection
 
     @abstractmethod
     def connect(self):
@@ -185,3 +252,16 @@ class SQLClient(metaclass=ABCMeta):
         finally:
             pool.close()
 
+    @abstractmethod
+    async def a_connect(self):
+        raise NotImplementedError
+
+    @asynccontextmanager
+    async def a_get_connection(self) -> AsyncConnection:
+        conn = await self.a_connect()
+        cursor = await conn.cursor()
+        try:
+            yield self.ASYNCCONNECTION_CLASS(cursor)
+        finally:
+            await cursor.close()
+            await conn.close()
