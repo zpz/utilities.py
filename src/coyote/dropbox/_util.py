@@ -51,19 +51,6 @@ def read_remote_timestamp(container: 'Container', remote_dir: str='./') -> str:
     return ts
 
 
-def make_version() -> str:
-    return datetime.utcnow().strftime('%Y%m%d-%H%M%S')
-
-
-ALNUM = string.ascii_letters + string.digits
-
-
-def is_version(version: str) -> bool:
-    if not version:
-        return False
-    return (version[0] in ALNUM) and all(v in ALNUM + '._-' for v in version)
-
-
 def upload_dir(
         local_abs_dir: str,
         container: 'Container',
