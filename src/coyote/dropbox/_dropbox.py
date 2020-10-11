@@ -246,11 +246,11 @@ class Dropbox:
 
     def remote_rm(self, path, *paths, missing_ok: bool = False):
         f = self._remote_real_path(path, *paths)
-        
-        raise NotImplementedError
+        self.remote_store.rm(f, missing_ok=missing_ok)
 
     def remote_rm_dir(self, path, *paths, missing_ok: bool = False, verbose: bool = True):
-        raise NotImplementedError
+        f = self._remote_real_path(path, *paths)
+        self.remote_store.rm_dir(f, missing_ok=missing_ok, verbose=verbose)
 
     def remote_has_timestamp(self, *paths) -> bool:
         return self.remote_is_file(*paths, TIMESTAMP_FILE)
