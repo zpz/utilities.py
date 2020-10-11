@@ -1,51 +1,92 @@
-import os
-import os.path
+import logging
 from pathlib import Path
 import shutil
-from typing import List
-from ._store import Store
+from ._file_store import FileStore
+
+logger = logging.getLogger(__name__)
 
 
-class LocalStore(Store):
-    def __init__(self, home: str=None):
-        if os.name != 'posix':
-            import sys
-            raise RuntimeError(f"`{self.__class__.__name__}` is not supported on your platform: `{sys.platform}`")
-        if not home:
-            home = str(Path.home())
-        super().__init__(home)
+class LocalFileStore(FileStore):
+    def is_file(self, remote_path):
+        return Path(remote_path).is_file()
 
-    def _exists_file(self, abs_path: str) -> bool:
-        return Path(self.realpath(abs_path)).is_file()
+    def is_dir(self, remote_path):
+        return Path(remote_path).is_dir()
 
-    def _ls_dir(self, abs_path: str, recursive: bool=False) -> List[str]:
-        dd = Path(self.realpath(abs_path))
-        if not dd.is_dir():
-            return []
-        if recursive:
-            zz = [str(f.relative_to(abs_path)) for f in dd.glob('**') if f.is_file]
+    def ls(self, remote_path, recursive=False):
+        path = Path(remote_path)
+        if path.is_file():
+            return [remote_path]
+        if path.is_dir():
+            if recursive:
+                z = path.glob('**')
+            else:
+                z = path.glob('*')
+            return [str(v) for v in z]
+        return []
+
+    def read_bytes(self, remote_file):
+        return Path(remote_file).read_bytes()
+
+    def write_bytes(self, data, remote_file, overwrite=False):
+        f = Path(remote_file)
+        if not overwrite and f.is_file():
+            raise FileExistsError(remote_file)
+        f.write_bytes(data)
+
+    def download(self, remote_file, local_file, overwrite=False):
+        if remote_file == local_file:
+            raise shutil.SameFileError(local_file)
+        f = Path(local_file)
+        if f.is_file():
+            if overwrite:
+                f.unlink()
+            else:
+                raise FileExistsError(local_file)
+        shutil.copyfile(remote_file, local_file)
+
+    def upload(self, local_file, remote_file, overwrite=False):
+        self.download(local_file, remote_file, overwrite=overwrite)
+
+    def download_dir(self, remote_dir, local_dir, overwrite=False, verbose=True):
+        if local_dir == remote_dir:
+            raise shutil.SameFileError(local_dir)
+        if Path(local_dir).is_dir():
+            if overwrite:
+                shutil.rmtree(local_dir)
+            else:
+                raise FileExistsError(local_dir)
+        if verbose:
+            logger.info("copying content of directory '%s' into '%s'",
+                        remote_dir, local_dir)
+        shutil.copytree(remote_dir, local_dir)
+
+    def upload_dir(self, local_dir, remote_dir, overwrite=False, verbose=True):
+        self.download_dir(local_dir, remote_dir,
+                          overwrite=overwrite, verbose=verbose)
+
+    def rm(self, remote_file, missing_ok=False):
+        f = Path(remote_file)
+        if f.is_file():
+            f.unlink()
+        elif f.is_dir():
+            raise Exception(
+                f"'{remote_file}' is a directory; please use `rm_dir` to remove")
+        elif missing_ok:
+            return
         else:
-            zz = [str(f.relative_to(abs_path)) + ('/' if f.is_dir() else '') for f in dd.iterdir()]
-        return zz
+            raise FileNotFoundError(remote_file)
 
-    def _rm(self, abs_path: str) -> None:
-        Path(self.realpath(abs_path)).unlink()
-
-    def _stat(self, abs_path: str):
-        return Path(self.realpath(abs_path)).stat()
-
-    def _cp(self, abs_source_file: str, abs_dest_file: str) -> None:
-        shutil.copyfile(self.realpath(abs_source_file), self.realpath(abs_dest_file))
-
-    def _mv(self, abs_source_file: str, abs_dest_file: str) -> None:
-        shutil.move(self.realpath(abs_source_file), self.realpath(abs_dest_file))
-
-    def _put(self, local_abs_file: str, abs_file: str) -> None:
-        shutil.copyfile(local_abs_file, self.realpath(abs_file))
-
-    def _get(self, abs_file: str, local_abs_file: str) -> None:
-        shutil.copyfile(self.realpath(abs_file), local_abs_file)
-
-    def open(self, file_path: str, mode: str='rt'):
-        return open(self.realpath(file_path), mode)
-        
+    def rm_dir(self, remote_dir, missing_ok=False, verbose=True):
+        f = Path(remote_dir)
+        if f.is_dir():
+            if verbose:
+                logger.info('deleting directory %s', remote_dir)
+            shutil.rmtree(remote_dir)
+        elif f.is_file():
+            raise Exception(
+                f"'{remote_dir}' is a file; please use `rm` to remove")
+        elif missing_ok:
+            return
+        else:
+            raise FileNotFoundError(remote_dir)
