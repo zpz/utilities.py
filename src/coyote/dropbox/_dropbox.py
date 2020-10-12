@@ -6,7 +6,7 @@ import pickle
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import List, Any, Union
+from typing import List, Any
 
 from ..path import join_path
 from ._local import LocalFileStore
@@ -32,50 +32,6 @@ def make_timestamp() -> str:
         open(file_name, 'w').write(make_timestamp())
     '''
     return datetime.utcnow().isoformat(timespec='microseconds')
-
-
-def write_timestamp(local_dir: Union[Path, str]) -> None:
-    if isinstance(local_dir, str):
-        local_dir = Path(local_dir)
-    if not local_dir.exists():
-        local_dir.mkdir(parents=True)
-    else:
-        if not local_dir.is_dir():
-            raise ValueError("`local_dir` should be a directory")
-    (local_dir / TIMESTAMP_FILE).write_text(make_timestamp())
-
-
-def read_timestamp(local_dir: Union[Path, str]) -> str:
-    if isinstance(local_dir, str):
-        local_dir = Path(local_dir)
-    return (local_dir / TIMESTAMP_FILE).read_text()
-
-
-def has_timestamp(local_dir: Union[Path, str]) -> bool:
-    if isinstance(local_dir, str):
-        local_dir = Path(local_dir)
-    return (local_dir / TIMESTAMP_FILE).is_file()
-
-
-def _is_abs(path: str) -> bool:
-    return path.startswith('/')
-
-
-def _is_file_name(abs_path: str) -> bool:
-    return not abs_path.endswith('/')
-
-
-def _is_dir_name(abs_path: str) -> bool:
-    return abs_path.endswith('/')
-
-
-# def _get_cp_dest(abs_source_file: str, abs_dest_path: str) -> str:
-#     # Get the destination file path as if we do
-#     #    cp abs_source_file abs_dest_path
-#     if abs_dest_path.endswith('/'):
-#         assert not abs_source_file.endswith('/')
-#         return os.path.join(abs_dest_path, os.path.basename(abs_source_file))
-#     return abs_dest_path
 
 
 class Dropbox:
@@ -124,9 +80,9 @@ class Dropbox:
 
     def remote_is_file(self, path: str) -> bool:
         f = self._remote_real_path(path)
-        if _is_file_name(f):
-            return self.remote_store.is_file(f)
-        return False
+        if f.endswith('/'):
+            return False
+        return self.remote_store.is_file(f)
 
     def remote_is_dir(self, path: str) -> bool:
         f = self._remote_real_path(path)
@@ -136,9 +92,9 @@ class Dropbox:
 
     def local_is_file(self, path: str) -> bool:
         f = self._local_real_path(path)
-        if _is_file_name(f):
-            return Path(f).is_file()
-        return False
+        if f.endswith('/'):
+            return False
+        return Path(f).is_file()
 
     def local_is_dir(self, path: str) -> bool:
         f = self._local_real_path(path)
@@ -165,7 +121,8 @@ class Dropbox:
         return self.remote_store.read_bytes(f)
 
     def remote_read_text(self, file_path) -> str:
-        return self.remote_read_bytes(file_path).decode()
+        f = self._remote_real_path(file_path)
+        return self.remote_store.read_text(f)
 
     def remote_read_json(self, file_path) -> Any:
         return json.loads(self.remote_read_text(file_path))
@@ -178,7 +135,8 @@ class Dropbox:
         self.remote_store.write_bytes(data, f, overwrite=overwrite)
 
     def remote_write_text(self, text, file_path, overwrite=False):
-        self.remote_write_bytes(text, file_path, overwrite=overwrite)
+        f = self._remote_real_path(file_path)
+        self.remote_store.write_text(text, f, overwrite=overwrite)
 
     def remote_write_json(self, x, file_path, overwrite=False):
         self.remote_write_text(json.dumps(x), file_path, overwrite=overwrite)
@@ -192,7 +150,8 @@ class Dropbox:
         return self.local_store.read_bytes(f)
 
     def local_read_text(self, file_path) -> str:
-        return self.local_read_bytes(file_path).decode()
+        f = self._local_real_path(file_path)
+        return self.local_store.read_text(f)
 
     def local_read_json(self, file_path) -> Any:
         return json.loads(self.local_read_text(file_path))
@@ -205,7 +164,8 @@ class Dropbox:
         self.local_store.write_bytes(data, f, overwrite=overwrite)
 
     def local_write_text(self, text, file_path, overwrite=False):
-        self.local_write_bytes(text, file_path, overwrite=overwrite)
+        f = self._local_real_path(file_path)
+        self.local_store.write_text(text, f, overwrite=overwrite)
 
     def local_write_json(self, x, file_path, overwrite=False):
         self.local_write_text(json.dumps(x), file_path, overwrite=overwrite)
@@ -215,14 +175,14 @@ class Dropbox:
             x), file_path, overwrite=overwrite)
 
     def download(self, file_path: str, overwrite: bool = False):
-        assert _is_file_name(file_path)
+        assert not file_path.endswith('/')
         remote_file = self._remote_real_path(file_path)
         local_file = self._local_real_path(file_path)
         self.remote_store.download(
             remote_file, local_file, overwrite=overwrite)
 
     def upload(self, file_path: str, overwrite: bool = False):
-        assert _is_file_name(file_path)
+        assert not file_path.endswith('/')
         local_file = self._local_real_path(file_path)
         remote_file = self._remote_real_path(file_path)
         self.remote_store.upload(
@@ -234,14 +194,43 @@ class Dropbox:
                      overwrite: bool = False,
                      clear_local_dir: bool = False,
                      verbose: bool = True):
-        raise NotImplementedError
+        if (self.remote_has_timestamp(dir_path)
+                and self.local_has_timestamp(dir_path)):
+            remote_ts = self.remote_read_timestamp(dir_path)
+            local_ts = self.local_read_timestamp(dir_path)
+            if local_ts >= remote_ts:
+                return 0
 
-    def upload_dir(self, dir_path: str,
+        if clear_local_dir:
+            self.local_store.rm_dir(dir_path, missing_ok=True, verbose=verbose)
+        self.remote_store.download_dir(
+            self._remote_real_path(dir_path),
+            self._local_real_path(dir_path),
+            overwrite=overwrite,
+            verbose=verbose)
+
+    def upload_dir(self,
+                   dir_path: str,
                    *,
                    overwrite: bool = False,
                    clear_remote_dir: bool = False,
                    verbose: bool = True):
-        raise NotImplementedError
+        if (self.remote_has_timestamp(dir_path)
+                and self.local_has_timestamp(dir_path)):
+            remote_ts = self.remote_read_timestamp(dir_path)
+            local_ts = self.local_read_timestamp(dir_path)
+            if remote_ts >= local_ts:
+                return 0
+
+        if clear_remote_dir:
+            self.remote_store.rm_dir(
+                dir_path, missing_ok=True, verbose=verbose)
+        self.remote_store.upload_dir(
+            self._local_real_path(dir_path),
+            self._remote_real_path(dir_path),
+            overwrite=overwrite,
+            verbose=verbose,
+        )
 
     def remote_rm(self, file_path, missing_ok: bool = False):
         f = self._remote_real_path(file_path)

@@ -27,6 +27,14 @@ class FileStore(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def read_text(self, remote_file: str) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def write_text(self, data: str, remote_file: str, overwrite: bool = False) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
     def download(self, remote_file: str, local_file: str, overwrite: bool = False) -> None:
         raise NotImplementedError
 

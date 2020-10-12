@@ -19,10 +19,10 @@ class LocalFileStore(FileStore):
             return [remote_path]
         if path.is_dir():
             if recursive:
-                z = path.glob('**')
+                z = path.glob('**/*')
             else:
                 z = path.glob('*')
-            return [str(v) for v in z]
+            return [str(v) if v.is_file() else str(v) + '/' for v in z]
         return []
 
     def read_bytes(self, remote_file):
@@ -32,7 +32,18 @@ class LocalFileStore(FileStore):
         f = Path(remote_file)
         if not overwrite and f.is_file():
             raise FileExistsError(remote_file)
+        Path(f.parent).mkdir(exist_ok=True)
         f.write_bytes(data)
+
+    def read_text(self, remote_file):
+        return Path(remote_file).read_text()
+
+    def write_text(self, data, remote_file, overwrite=False):
+        f = Path(remote_file)
+        if not overwrite and f.is_file():
+            raise FileExistsError(remote_file)
+        Path(f.parent).mkdir(exist_ok=True)
+        f.write_text(data)
 
     def download(self, remote_file, local_file, overwrite=False):
         if remote_file == local_file:
@@ -53,6 +64,7 @@ class LocalFileStore(FileStore):
             raise shutil.SameFileError(local_dir)
         if Path(local_dir).is_dir():
             if overwrite:
+                # TODO: overwrite file-wise or clear the whole directory?
                 shutil.rmtree(local_dir)
             else:
                 raise FileExistsError(local_dir)
