@@ -10,6 +10,7 @@ from ..functools import classproperty
 
 from ._dropbox import Dropbox
 from ._dropbox import write_timestamp, read_timestamp, has_timestamp, TIMESTAMP_FILE
+from ._file_store import FileStore
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,8 @@ def is_version(version: str) -> bool:
 
 
 class VersionedUploadableMixin:
+    REMOTE_STORE_CLASS: Type[FileStore]
+
     def __init__(self, version: str = None, version_tag: str = None):
         if version is None:
             self.version = make_version()
@@ -36,8 +39,15 @@ class VersionedUploadableMixin:
                 if version_tag:
                     assert is_version(version_tag)
                     self.version = self.version + '-' + version_tag
-            return
-        assert version_tag is None
+        else:
+            assert version_tag is None
+            self.version = version_tag
+
+        self.dropbox = Dropbox(
+            remote_store=self.REMOTE_STORE_CLASS(),
+            remote_root_dir=self.remote_dir,
+            local_root_dir=self.local_dir,
+        )
 
     def load(self):
         if self.is_local_version():
@@ -119,6 +129,7 @@ class VersionedUploadableMixin:
     def rm_remote_version(cls, version):
         logger.info("deleting remote version %s of %s",
                     version, cls.__name__)
+        raise NotImplementedError
 
     def destroy(self):
         self.rm_local_version(self.version)

@@ -10,6 +10,7 @@ from typing import List, Any
 
 from ..path import join_path
 from ._local import LocalFileStore
+from ._file_store import FileStore
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +36,15 @@ def make_timestamp() -> str:
 
 
 class Dropbox:
-    def __init__(self, remote_root_dir: str, local_root_dir: str):
+    def __init__(self,
+                 remote_store: FileStore,
+                 remote_root_dir: str,
+                 local_root_dir: str):
         self.remote_root_dir = remote_root_dir
         self.local_root_dir = local_root_dir
         self.pwd = '/'
         self.pwd_history = []
-        self.remote_store = LocalFileStore()
+        self.remote_store = remote_store
         self.local_store = LocalFileStore()
 
     def _abs_path(self, path: str, *paths):
