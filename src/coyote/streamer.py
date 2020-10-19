@@ -9,7 +9,6 @@ from .a_sync import create_loud_task, IO_WORKERS
 
 logger = logging.getLogger(__name__)
 
-NO_MORE_DATA = object()
 
 # Iterable vs iterator
 #
@@ -42,12 +41,17 @@ async def stream(x: Iterable):
 
 
 class Queue(asyncio.Queue, AsyncIterator):
+    NO_MORE_DATA = object()
+
+    async def finish(self):
+        await self.put(self.NO_MORE_DATA)
+
     def __aiter__(self):
         return self
 
     async def __anext__(self):
         z = await self.get()
-        if z is NO_MORE_DATA:
+        if z is self.NO_MORE_DATA:
             raise StopAsyncIteration
         return z
 
@@ -61,10 +65,10 @@ class Buffer(Queue):
     async def _start(self):
         async for x in self._in_stream:
             await self.put(x)
-        await self.put(NO_MORE_DATA)
+        await self.finish()
 
 
-async def batch(x: AsyncIterable, batch_size: int):
+async def batch(in_stream: AsyncIterable, batch_size: int):
     '''
     Take elements from an input stream,
     and bundle them up into batches up to a size limit,
@@ -81,8 +85,8 @@ async def batch(x: AsyncIterable, batch_size: int):
     assert 0 < batch_size <= 10000
     batch_ = []
     n = 0
-    async for xx in x:
-        batch_.append(xx)
+    async for x in in_stream:
+        batch_.append(x)
         n += 1
         if n >= batch_size:
             yield batch_
@@ -92,15 +96,15 @@ async def batch(x: AsyncIterable, batch_size: int):
         yield batch_
 
 
-async def unbatch(batches: AsyncIterable):
-    async for batch in batches:
+async def unbatch(in_stream: AsyncIterable):
+    async for batch in in_stream:
         for x in batch:
             yield x
             await asyncio.sleep(0)
 
 
 async def transform(
-    x: AsyncIterator,
+    in_stream: AsyncIterator,
     func,
     *,
     workers: int = None,
@@ -113,14 +117,13 @@ async def transform(
     via `func_args`.
 
     The outputs are in the order
-    of the input elements in `x`.
+    of the input elements in `in_stream`.
 
     `workers`: max number of concurrent calls to `func`.
     If <= 1, no concurrency.
     By default there are multiple.
     Pass in 0 or 1 to enforce single worker.
     '''
-    in_stream = x
     if workers is None:
         workers = IO_WORKERS
 
@@ -131,90 +134,98 @@ async def transform(
         return
 
     if out_buffer_size is None:
-        out_buffer_size = workers * 2
+        out_buffer_size = workers * 8
     out_stream = Queue(out_buffer_size)
     finished = False
+    lock = asyncio.Lock()
 
     async def _process():
-        try:
-            x = await in_stream.__anext__()
-            fut = asyncio.Future()
-            await out_stream.put(fut)
+        nonlocal finished
+        while not finished:
+            async with lock:
+                if finished:
+                    break
+                try:
+                    x = await in_stream.__anext__()
+                except StopAsyncIteration:
+                    finished = True
+                    await out_stream.finish()
+                    break
+                fut = asyncio.Future()
+                await out_stream.put(fut)
             y = await func(x, **func_args)
             fut.set_result(y)
-        except StopAsyncIteration:
-            nonlocal finished
-            if not finished:
-                finished = True
-                await out_stream.put(NO_MORE_DATA)
 
-    t_processes = [
+    t_workers = [
         create_loud_task(_process())
         for _ in range(workers)
     ]
 
-    while True:
-        fut = await out_stream.get()
-        if fut == NO_MORE_DATA:
-            break
+    async for fut in out_stream:
         yield await fut
 
-    for t in t_processes:
+    for t in t_workers:
         await t
 
 
 async def unordered_transform(
-    x: AsyncIterator,
+    in_stream: AsyncIterator,
     func,
     *,
     workers: int = None,
     out_buffer_size: int = None,
     **func_args,
 ):
-    in_stream = x
     if workers is None:
         workers = IO_WORKERS
     assert workers > 1
 
     if out_buffer_size is None:
-        out_buffer_size = workers * 2
+        out_buffer_size = workers * 8
     out_stream = Queue(out_buffer_size)
     finished = False
+    lock = asyncio.Lock()
+    n_active_workers = workers
 
     async def _process():
-        try:
-            x = await in_stream.__anext__()
+        nonlocal finished
+        while not finished:
+            async with lock:
+                if finished:
+                    break
+                try:
+                    x = await in_stream.__anext__()
+                except StopAsyncIteration:
+                    finished = True
+                    break
             y = await func(x, **func_args)
             await out_stream.put(y)
-        except StopAsyncIteration:
-            nonlocal finished
-            if not finished:
-                finished = True
-                await out_stream.put(NO_MORE_DATA)
 
-    t_processes = [
+        nonlocal n_active_workers
+        n_active_workers -= 1
+        if n_active_workers == 0:
+            await out_stream.finish()
+
+    t_workers = [
         create_loud_task(_process())
         for _ in range(workers)
     ]
 
-    while True:
-        y = await out_stream.get()
-        if y == NO_MORE_DATA:
-            break
+    async for y in out_stream:
         yield y
 
-    for t in t_processes:
+    for t in t_workers:
         await t
 
 
-async def sink(
-        x: AsyncIterable,
+async def drain(
+        in_stream: AsyncIterable,
         func,
         *,
         workers: int = None,
         log_every: int = 1000,
         **func_args,
-):
+) -> int:
     '''
     `func`: an async function that takes a single input item
     but does not produce (useful) return.
@@ -227,24 +238,28 @@ async def sink(
     in `in_stream`.
     However, the shuffling of order is local.
     '''
-    if workers is not None and workers == 1:
+    if workers is not None and workers < 2:
         trans = transform(
-            x,
+            in_stream,
             func,
             workers=workers,
             **func_args,
         )
     else:
         trans = unordered_transform(
-            x,
+            in_stream,
             func,
             workers=workers,
             **func_args,
         )
 
     n = 0
+    nn = 0
     async for _ in trans:
         if log_every:
             n += 1
-            if n % log_every == 0:
-                logger.info('drained %d', n)
+            nn += 1
+            if n == log_every:
+                logger.info('drained %d', nn)
+                n = 0
+    return nn
