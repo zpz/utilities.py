@@ -32,28 +32,13 @@ NO_MORE_DATA = object()
 # This way the class is both an iterable and an iterator.
 
 
-# An `AsyncIterable` flows through most functions defined in this module.
-# An `AsyncIterable` is either an object that has method `__aiter__`,
-# or an `AsyncGenerator` like this:
-#
-#   async def make_data():
-#       for x in ...:
-#           yield x
-
-
-class Stream(AsyncIterable):
-    def __init__(self, data: Iterable):
-        self._data = data
-
-    async def __aiter__(self):
-        if isinstance(self._data, AsyncIterable):
-            async for x in self._data:
-                yield x
-        else:
-            for x in self._data:
-                yield x
-                await asyncio.sleep(0)
-                # TODO: is this needed?
+async def stream(x: Iterable):
+    '''
+    Turn a sync iterable into an async iterable.
+    '''
+    for xx in x:
+        yield xx
+        await asyncio.sleep(0)
 
 
 class Queue(asyncio.Queue, AsyncIterator):
@@ -79,9 +64,9 @@ class Buffer(Queue):
         await self.put(NO_MORE_DATA)
 
 
-class Batcher(AsyncIterable):
+async def batch(x: AsyncIterable, batch_size: int):
     '''
-    A `Batcher` object takes elements from an input stream,
+    Take elements from an input stream,
     and bundle them up into batches up to a size limit,
     and produce the batches in an iterable.
 
@@ -91,216 +76,175 @@ class Batcher(AsyncIterable):
     For efficiency, this requires the input stream to have a steady
     supply.
     If that is a concern, having a `Buffer` on the input stream
-    may help. Note, the output of `Transformer` is already buffered.
+    may help.
     '''
-
-    def __init__(self,
-                 in_stream: AsyncIterable,
-                 batch_size: int,
-                 ):
-        assert 0 < batch_size <= 10000
-        self._in_stream = in_stream
-        self._batch_size = batch_size
-
-    async def __aiter__(self):
-        batch_size = self._batch_size
-        batch = []
-        n = 0
-        async for x in self._in_stream:
-            batch.append(x)
-            n += 1
-            if n >= batch_size:
-                yield batch
-                batch = []
-                n = 0
-        if n:
-            yield batch
+    assert 0 < batch_size <= 10000
+    batch_ = []
+    n = 0
+    async for xx in x:
+        batch_.append(xx)
+        n += 1
+        if n >= batch_size:
+            yield batch_
+            batch_ = []
+            n = 0
+    if n:
+        yield batch_
 
 
-class Unbatcher:
+async def unbatch(batches: AsyncIterable):
+    async for batch in batches:
+        for x in batch:
+            yield x
+            await asyncio.sleep(0)
+
+
+async def transform(
+    x: AsyncIterator,
+    func,
+    *,
+    workers: int = None,
+    out_buffer_size: int = None,
+    **func_args,
+):
     '''
-    An `Unbatcher` object does the opposite of `Batcher`.
+    `func`: an async function that takes a single input item,
+    and produces a result. Additional args can be passed in
+    via `func_args`.
+
+    The outputs are in the order
+    of the input elements in `x`.
+
+    `workers`: max number of concurrent calls to `func`.
+    If <= 1, no concurrency.
+    By default there are multiple.
+    Pass in 0 or 1 to enforce single worker.
     '''
+    in_stream = x
+    if workers is None:
+        workers = IO_WORKERS
 
-    def __init__(self, in_stream: AsyncIterable):
-        self._in_stream = in_stream
+    if workers < 2:
+        async for x in in_stream:
+            y = await func(x, **func_args)
+            yield y
+        return
 
-    async def __aiter__(self):
-        async for batch in self._in_stream:
-            for x in batch:
-                yield x
-                await asyncio.sleep(0)
-                # TODO: is this needed?
+    if out_buffer_size is None:
+        out_buffer_size = workers * 2
+    out_stream = Queue(out_buffer_size)
+    finished = False
+
+    async def _process():
+        try:
+            x = await in_stream.__anext__()
+            fut = asyncio.Future()
+            await out_stream.put(fut)
+            y = await func(x, **func_args)
+            fut.set_result(y)
+        except StopAsyncIteration:
+            nonlocal finished
+            if not finished:
+                finished = True
+                await out_stream.put(NO_MORE_DATA)
+
+    t_processes = [
+        create_loud_task(_process())
+        for _ in range(workers)
+    ]
+
+    while True:
+        fut = await out_stream.get()
+        if fut == NO_MORE_DATA:
+            break
+        yield await fut
+
+    for t in t_processes:
+        await t
 
 
-class Transformer(AsyncIterable):
-    def __init__(
-        self,
-        in_stream: AsyncIterable,
+async def unordered_transform(
+    x: AsyncIterator,
+    func,
+    *,
+    workers: int = None,
+    out_buffer_size: int = None,
+    **func_args,
+):
+    in_stream = x
+    if workers is None:
+        workers = IO_WORKERS
+    assert workers > 1
+
+    if out_buffer_size is None:
+        out_buffer_size = workers * 2
+    out_stream = Queue(out_buffer_size)
+    finished = False
+
+    async def _process():
+        try:
+            x = await in_stream.__anext__()
+            y = await func(x, **func_args)
+            await out_stream.put(y)
+        except StopAsyncIteration:
+            nonlocal finished
+            if not finished:
+                finished = True
+                await out_stream.put(NO_MORE_DATA)
+
+    t_processes = [
+        create_loud_task(_process())
+        for _ in range(workers)
+    ]
+
+    while True:
+        y = await out_stream.get()
+        if y == NO_MORE_DATA:
+            break
+        yield y
+
+    for t in t_processes:
+        await t
+
+
+async def sink(
+        x: AsyncIterable,
         func,
         *,
         workers: int = None,
-        out_buffer_size: int = None,
+        log_every: int = 1000,
         **func_args,
-    ):
-        '''
-        `func`: an async function that takes a single input item,
-        and produces a result. Additional args can be passed in
-        via `func_args`.
+):
+    '''
+    `func`: an async function that takes a single input item
+    but does not produce (useful) return.
+    Example operation of `func`: insert into DB.
+    Additional arguments can be passed in via `func_args`.
 
-        The results put in `self._out_stream` are in the order
-        of the input elements in `in_stream`.
+    When `workers > 1` (or is `None`),
+    order of processing of elements in `in_stream`
+    is NOT guaranteed to be the same as the elements' order
+    in `in_stream`.
+    However, the shuffling of order is local.
+    '''
+    if workers is not None and workers == 1:
+        trans = transform(
+            x,
+            func,
+            workers=workers,
+            **func_args,
+        )
+    else:
+        trans = unordered_transform(
+            x,
+            func,
+            workers=workers,
+            **func_args,
+        )
 
-        `workers`: max number of concurrent calls to `func`.
-        If <= 1, no concurrency.
-        By default there are multiple.
-        Pass in 0 or 1 to enforce single worker.
-        '''
-        self._in_stream = in_stream
-        self._func = func
-
-        if workers is None:
-            workers = IO_WORKERS
-
-        self._out_stream = Queue(maxsize=out_buffer_size or 1024)
-        self._t_start = create_loud_task(self._start(
-            func, workers=workers, **func_args
-        ))
-
-    async def _collect(self, q_t):
-        while True:
-            v = await q_t.get()
-            if v is NO_MORE_DATA:
-                break
-            z = await v
-            await self._out_stream.put(z)
-
-    async def _collect2(self, q_t, NOOP):
-        while True:
-            v = await q_t.get()
-            if v is NOOP:
-                continue
-            if v is NO_MORE_DATA:
-                return
-            z = await v
-            await self._out_stream.put(z)
-
-    async def _start(self, func, workers, **func_args):
-        if workers < 2:
-            async for x in self._in_stream:
-                z = await func(x, **func_args)
-                await self._out_stream.put(z)
-            await self._out_stream.put(NO_MORE_DATA)
-        elif workers == 2:
-            q_t = asyncio.Queue(1)
-            NOOP = object()
-            t_collect = create_loud_task(self._collect2(q_t, NOOP))
-            async for x in self._in_stream:
-                await q_t.put(NOOP)
-                t = create_loud_task(func(x, **func_args))
-                await q_t.put(t)
-            await q_t.put(NO_MORE_DATA)
-            await t_collect
-            await self._out_stream.put(NO_MORE_DATA)
-        else:
-            q_t = asyncio.Queue(workers - 2)
-            t_collect = create_loud_task(self._collect(q_t))
-            async for x in self._in_stream:
-                t = create_loud_task(func(x, **func_args))
-                await q_t.put(t)
-            await q_t.put(NO_MORE_DATA)
-            await t_collect
-            await self._out_stream.put(NO_MORE_DATA)
-
-    def __aiter__(self):
-        return self._out_stream
-
-
-class EagerTransformer(AsyncIterable):
-    def __init__(self,
-                 in_stream: AsyncIterable,
-                 func,
-                 *,
-                 workers: int = None,
-                 out_buffer_size: int = None,
-                 **func_args,
-                 ):
-        self._in_stream = in_stream
-        if workers is None:
-            workers = IO_WORKERS
-        else:
-            assert workers > 1
-        self._out_stream = Queue(maxsize=out_buffer_size or 1024)
-        self._t_start = create_loud_task(self._start(
-            workers, func, **func_args
-        ))
-
-    async def _collect(self, q, func, **func_args):
-        while True:
-            x = await q.get()
-            if x is NO_MORE_DATA:
-                return
-            z = await func(x, **func_args)
-            await self._out_stream.put(z)
-
-    async def _start(self, workers, func, **func_args):
-        q = Queue(self._out_stream.maxsize)
-        ws = [
-            create_loud_task(self._collect(q, func, **func_args))
-            for _ in range(workers)
-        ]
-        async for x in self._in_stream:
-            await q.put(x)
-        for _ in workers:
-            await q.put(NO_MORE_DATA)
-        for w in ws:
-            await w
-        await self._out_stream.put(NO_MORE_DATA)
-
-    def __aiter__(self):
-        return self._out_stream
-
-
-class Sink:
-    def __init__(self,
-                 in_stream: AsyncIterable,
-                 func,
-                 *,
-                 workers: int = None,
-                 **func_args,
-                 ):
-        '''
-        `func`: an async function that takes a single input item
-        but does not produce (useful) return.
-        Example operation of `func`: insert into DB.
-        Additional arguments can be passed in via `func_args`.
-
-        When `workers > 1` (or is `None`),
-        order of processing of elements in `in_stream`
-        is NOT guaranteed to be the same as the elements' order
-        in `in_stream`.
-        However, the shuffling of order is local.
-        '''
-        if workers is not None and workers == 1:
-            self._trans = Transformer(
-                in_stream,
-                func,
-                workers=workers,
-                **func_args,
-            )
-        else:
-            self._trans = EagerTransformer(
-                in_stream,
-                func,
-                workers=workers,
-                **func_args,
-            )
-
-    async def a_drain(self, log_every: int = 1000):
-        # This must be called to finish up the job.
-        n = 0
-        async for _ in self._trans:
-            if log_every:
-                n += 1
-                if n % log_every == 0:
-                    logger.info('drained %d', n)
+    n = 0
+    async for _ in trans:
+        if log_every:
+            n += 1
+            if n % log_every == 0:
+                logger.info('drained %d', n)
