@@ -1,14 +1,16 @@
 import asyncio
 import logging
-import multiprocessing
-import traceback
-from collections.abc import AsyncIterable, AsyncIterator, Iterable, Iterator
-from typing import Union
+import typing
+from collections.abc import AsyncIterable, AsyncIterator, Iterable
+from typing import Callable, Awaitable, Any, TypeVar
 
 from .a_sync import create_loud_task, IO_WORKERS
 
 logger = logging.getLogger(__name__)
 
+NO_MORE_DATA = object()
+
+T = TypeVar('T')
 
 # Iterable vs iterator
 #
@@ -30,42 +32,37 @@ logger = logging.getLogger(__name__)
 # Often we let `__iter__` return `self`, and implement `__next__` in the same class.
 # This way the class is both an iterable and an iterator.
 
+# Async generator returns an async iterator.
+
 
 async def stream(x: Iterable):
     '''
-    Turn a sync iterable into an async iterable.
+    Turn a sync iterable into an async iterator.
     '''
     for xx in x:
         yield xx
         await asyncio.sleep(0)
 
 
-class Queue(asyncio.Queue, AsyncIterator):
-    NO_MORE_DATA = object()
-
-    async def finish(self):
-        await self.put(self.NO_MORE_DATA)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        z = await self.get()
-        if z is self.NO_MORE_DATA:
-            raise StopAsyncIteration
-        return z
-
-
-class Buffer(Queue):
+class Buffer(AsyncIterator):
     def __init__(self, in_stream: AsyncIterable, buffer_size: int = None):
-        super().__init__(maxsize=buffer_size or 1024)
+        self._data = asyncio.Queue(maxsize=buffer_size or 1024)
         self._in_stream = in_stream
         self._t_start = create_loud_task(self._start())
 
     async def _start(self):
         async for x in self._in_stream:
-            await self.put(x)
-        await self.finish()
+            await self._data.put(x)
+        await self._data.put(NO_MORE_DATA)
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        z = await self._data.get()
+        if z is NO_MORE_DATA:
+            raise StopAsyncIteration
+        return z
 
 
 async def batch(in_stream: AsyncIterable, batch_size: int):
@@ -104,8 +101,8 @@ async def unbatch(in_stream: AsyncIterable):
 
 
 async def transform(
-    in_stream: AsyncIterator,
-    func,
+    in_stream: typing.AsyncIterator[T],
+    func: Callable[[T], Awaitable[Any]],
     *,
     workers: int = None,
     out_buffer_size: int = None,
@@ -135,7 +132,7 @@ async def transform(
 
     if out_buffer_size is None:
         out_buffer_size = workers * 8
-    out_stream = Queue(out_buffer_size)
+    out_stream = asyncio.Queue(out_buffer_size)
     finished = False
     lock = asyncio.Lock()
 
@@ -149,7 +146,7 @@ async def transform(
                     x = await in_stream.__anext__()
                 except StopAsyncIteration:
                     finished = True
-                    await out_stream.finish()
+                    await out_stream.put(NO_MORE_DATA)
                     break
                 fut = asyncio.Future()
                 await out_stream.put(fut)
@@ -161,7 +158,10 @@ async def transform(
         for _ in range(workers)
     ]
 
-    async for fut in out_stream:
+    while True:
+        fut = await out_stream.get()
+        if fut is NO_MORE_DATA:
+            break
         yield await fut
 
     for t in t_workers:
@@ -169,8 +169,8 @@ async def transform(
 
 
 async def unordered_transform(
-    in_stream: AsyncIterator,
-    func,
+    in_stream: typing.AsyncIterator[T],
+    func: Callable[[T], Awaitable[Any]],
     *,
     workers: int = None,
     out_buffer_size: int = None,
@@ -182,7 +182,7 @@ async def unordered_transform(
 
     if out_buffer_size is None:
         out_buffer_size = workers * 8
-    out_stream = Queue(out_buffer_size)
+    out_stream = asyncio.Queue(out_buffer_size)
     finished = False
     lock = asyncio.Lock()
     n_active_workers = workers
@@ -204,14 +204,17 @@ async def unordered_transform(
         nonlocal n_active_workers
         n_active_workers -= 1
         if n_active_workers == 0:
-            await out_stream.finish()
+            await out_stream.put(NO_MORE_DATA)
 
     t_workers = [
         create_loud_task(_process())
         for _ in range(workers)
     ]
 
-    async for y in out_stream:
+    while True:
+        y = await out_stream.get()
+        if y is NO_MORE_DATA:
+            break
         yield y
 
     for t in t_workers:
@@ -219,8 +222,8 @@ async def unordered_transform(
 
 
 async def drain(
-        in_stream: AsyncIterable,
-        func,
+        in_stream: typing.AsyncIterable[T],
+        func: Callable[[T], Awaitable[None]],
         *,
         workers: int = None,
         log_every: int = 1000,
