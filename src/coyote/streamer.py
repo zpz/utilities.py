@@ -41,28 +41,25 @@ async def stream(x: Iterable):
     '''
     for xx in x:
         yield xx
-        await asyncio.sleep(0)
 
 
-class Buffer(AsyncIterator):
-    def __init__(self, in_stream: AsyncIterable, buffer_size: int = None):
-        self._data = asyncio.Queue(maxsize=buffer_size or 1024)
-        self._in_stream = in_stream
-        self._t_start = create_loud_task(self._start())
+async def buffer(in_stream: AsyncIterable, buffer_size: int = None):
+    out_stream = asyncio.Queue(maxsize=buffer_size or 1024)
 
-    async def _start(self):
-        async for x in self._in_stream:
-            await self._data.put(x)
-        await self._data.put(NO_MORE_DATA)
+    async def buff(in_stream, out_stream):
+        async for x in in_stream:
+            await out_stream.put(x)
+        await out_stream.put(NO_MORE_DATA)
 
-    def __aiter__(self):
-        return self
+    t = create_loud_task(buff(in_stream, out_stream))
 
-    async def __anext__(self):
-        z = await self._data.get()
-        if z is NO_MORE_DATA:
-            raise StopAsyncIteration
-        return z
+    while True:
+        x = await out_stream.get()
+        if x is NO_MORE_DATA:
+            break
+        yield x
+
+    await t
 
 
 async def batch(in_stream: AsyncIterable, batch_size: int):
@@ -97,7 +94,6 @@ async def unbatch(in_stream: AsyncIterable):
     async for batch in in_stream:
         for x in batch:
             yield x
-            await asyncio.sleep(0)
 
 
 async def transform(
@@ -130,13 +126,9 @@ async def transform(
             yield y
         return
 
-    if out_buffer_size is None:
-        out_buffer_size = workers * 8
-    out_stream = asyncio.Queue(out_buffer_size)
     finished = False
-    lock = asyncio.Lock()
 
-    async def _process():
+    async def _process(in_stream, lock, out_stream, func, **kwargs):
         nonlocal finished
         while not finished:
             async with lock:
@@ -150,11 +142,22 @@ async def transform(
                     break
                 fut = asyncio.Future()
                 await out_stream.put(fut)
-            y = await func(x, **func_args)
+            y = await func(x, **kwargs)
             fut.set_result(y)
 
+    if out_buffer_size is None:
+        out_buffer_size = workers * 8
+    out_stream = asyncio.Queue(out_buffer_size)
+    lock = asyncio.Lock()
+
     t_workers = [
-        create_loud_task(_process())
+        create_loud_task(_process(
+            in_stream,
+            lock,
+            out_stream,
+            func,
+            **func_args,
+        ))
         for _ in range(workers)
     ]
 
@@ -187,7 +190,7 @@ async def unordered_transform(
     lock = asyncio.Lock()
     n_active_workers = workers
 
-    async def _process():
+    async def _process(in_stream, lock, out_stream, func, **kwargs):
         nonlocal finished
         while not finished:
             async with lock:
@@ -198,7 +201,7 @@ async def unordered_transform(
                 except StopAsyncIteration:
                     finished = True
                     break
-            y = await func(x, **func_args)
+            y = await func(x, **kwargs)
             await out_stream.put(y)
 
         nonlocal n_active_workers
@@ -207,7 +210,10 @@ async def unordered_transform(
             await out_stream.put(NO_MORE_DATA)
 
     t_workers = [
-        create_loud_task(_process())
+        create_loud_task(_process(
+            in_stream, lock, out_stream,
+            func, **func_args,
+        ))
         for _ in range(workers)
     ]
 

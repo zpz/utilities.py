@@ -5,7 +5,7 @@ import random
 import pytest
 
 from coyote.streamer import (
-    stream, Buffer, transform, unordered_transform,
+    stream, buffer, transform, unordered_transform,
     drain, batch, unbatch)
 
 
@@ -84,7 +84,7 @@ async def test_chain():
 async def test_buffer():
     expected = [v + 3.8 for v in SYNC_INPUT]
     s = transform(
-        Buffer(stream(SYNC_INPUT)),
+        buffer(stream(SYNC_INPUT)),
         f1)
     got = [v async for v in s]
     assert got == expected
@@ -92,7 +92,7 @@ async def test_buffer():
     expected = [(v + 3.8) * 2 for v in SYNC_INPUT]
     s = transform(
         transform(
-            Buffer(stream(SYNC_INPUT)),
+            buffer(stream(SYNC_INPUT)),
             f1),
         f2)
     got = [v async for v in s]
