@@ -4,4 +4,5 @@ set -o pipefail
 thisfile="${BASH_SOURCE[0]}"
 thisdir="$( cd "$( dirname "${thisfile}" )" && pwd )"
 
-yapf -ir -vv --no-local-style ${thisdir}/
+yapf -ir -vv --no-local-style ${thisdir}/src/zpz
+
