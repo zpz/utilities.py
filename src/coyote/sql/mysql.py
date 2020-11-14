@@ -9,7 +9,7 @@ import aioodbc
 import MySQLdb as mysqlclient
 from boltons.iterutils import chunked_iter
 
-from .sql import SQLClient, Connection, AsyncConnection
+from .sql import SQLClient, Connection, AsyncConnection, ConnectionPool
 from ..a_sync import IO_WORKERS
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,22 @@ class MysqlConnection(Connection):
         return int(z[0][0])
 
 
+class MysqlConnectionPool(ConnectionPool):
+    def insert_stream(self,
+                      rows: Iterable,
+                      *,
+                      tb_name: str,
+                      cols: List[str],
+                      batch_size: int,
+                      **kwargs,
+                      ):
+        def func(conn, rows):
+            return conn.insert_batch(
+                rows, tb_name=tb_name, cols=cols)
+        return self.execute_stream(rows, func,
+                                   batch_size=batch_size, **kwargs)
+
+
 class MysqlAsyncConnection(AsyncConnection):
     async def insert_batch(self,
                            rows: Iterable[Iterable[str]],
@@ -94,6 +110,7 @@ class MysqlAsyncConnection(AsyncConnection):
 class MySQL(SQLClient):
     CONNECTION_CLASS = MysqlConnection
     ASYNCCONNECTION_CLASS = MysqlAsyncConnection
+    CONNECTIONPOOL_CLASS = MysqlConnectionPool
 
     def __init__(self,
                  *,
@@ -115,7 +132,7 @@ class MySQL(SQLClient):
             port=self.port,
             user=self.user,
             passwd=self.password,
-            db=self.db,
+            db=self.database,
         )
         conn.autocommit(True)
         return conn
@@ -132,52 +149,3 @@ class MySQL(SQLClient):
         }
         dsn = ';'.join(f'{k}={v}' for k, v in config.items())
         return await aioodbc.connect(dsn=dsn, autocommit=True)
-
-    def insert_stream(self,
-                      rows: Iterable,
-                      *,
-                      tb_name: str,
-                      cols: List[str],
-                      batch_size: int,
-                      log_every_n_batches: int = 1,
-                      max_concurrency: int = None,
-                      ) -> int:
-        assert batch_size <= 10000
-        max_conn = max_concurrency or IO_WORKERS
-
-        with self.get_connection_pool(max_conn) as pool:
-            futures = {}
-            n_inserted = 0
-
-            def callback(t):
-                if t.cancelled():
-                    raise RuntimeError('Future object has been cancelled')
-                e = t.exception()
-                if e is not None:
-                    raise e
-                del futures[id(t)]
-
-            def insert_one_batch(rows, ibatch):
-                if log_every_n_batches and (ibatch + 1) % log_every_n_batches == 0:
-                    verbose = True
-                    logger.info('  inserting batch #%d', ibatch + 1)
-                else:
-                    verbose = False
-                with pool.get_connection() as conn:
-                    n = conn.insert_batch(rows, tb_name=tb_name, cols=cols)
-                if verbose:
-                    logger.info('  inserted batch #%d', ibatch + 1)
-                nonlocal n_inserted
-                n_inserted += n
-
-            with ThreadPoolExecutor(max_conn + 1) as executor:
-                for ibatch, batch in enumerate(chunked_iter(rows, batch_size)):
-                    while not pool.vacancy:
-                        time.sleep(0.017)
-                    t = executor.submit(insert_one_batch, batch, ibatch)
-                    futures[id(t)] = t
-                    t.add_done_callback(callable)
-
-            while futures:
-                time.sleep(0.012)
-            return n_inserted

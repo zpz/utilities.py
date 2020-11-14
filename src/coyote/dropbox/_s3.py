@@ -40,7 +40,7 @@ class Bucket:
     def __init__(self, bucket):
         for header in ('s3://', 's3n://'):
             if bucket.startswith(header):
-                bucket = bucket[len(header) :]
+                bucket = bucket[len(header):]
                 break
         if '/' in bucket:
             bucket = bucket[: bucket.find('/')]
@@ -54,7 +54,7 @@ class Bucket:
         for header in ('s3://', 's3n://'):
             if key.startswith(header):
                 assert key.startswith(header + self.name + '/')
-                key = key[(len(header) + len(self.name) + 1) :]
+                key = key[(len(header) + len(self.name) + 1):]
         return key
 
     def upload(self, local_file: str, s3_key: str) -> None:
@@ -63,7 +63,7 @@ class Bucket:
 
         `local_file`: path to local file.
         `s3_key`: S3 'key'.
-        
+
         Example: suppose current bucket is s3://my-org, with
 
         local_file: /home/zepu/work/data/xyz/memo.txt
@@ -94,7 +94,7 @@ class Bucket:
             etc.
 
         Example: suppose current bucket is s3://my-org, with
-        
+
         local_path: /home/me/work/data/xyz, containing
             .../xyz/a.txt, 
             .../xyz/b.txt,
@@ -135,7 +135,7 @@ class Bucket:
         s3_path = self._remove_bucket_key(s3_path)
         raise NotImplementedError
 
-    def ls(self, key, recursive: bool=False):
+    def ls(self, key, recursive: bool = False):
         # List object names directly or recursively named like `key*`.
         # If `key` is `abc/def/`,
         # then `abc/def/123/45` will return as `123/45`
@@ -148,7 +148,7 @@ class Bucket:
         # include the trailing `/` in `key`.
 
         key = self._remove_bucket_key(key)
-    
+
         z = self._bucket.objects.filter(Prefix=key)
 
         if key.endswith('/'):
@@ -157,12 +157,12 @@ class Bucket:
             key_len = key.rfind('/') + 1
 
         if recursive:
-            return (v.key[key_len :] for v in z)  
+            return (v.key[key_len:] for v in z)
             # this is a generator, b/c there can be many, many elements
         else:
             keys = set()
             for v in z:
-                vv = v.key[key_len :]
+                vv = v.key[key_len:]
                 idx = vv.find('/')
                 if idx >= 0:
                     vv = vv[: idx]
@@ -185,7 +185,7 @@ class Bucket:
 
     def delete_tree(self, s3_path: str) -> int:
         s3_path = self._remove_bucket_key(s3_path)
-        
+
         n = 0
         while True:
             nn = self._delete_tree(s3_path)
@@ -200,7 +200,7 @@ class Bucket:
         Return the number of objects deleted.
 
         After this operation, the 'folder' `s3_path` is also gone.
-        
+
         TODO: this is not the fastest way to do it.
         '''
         assert s3_path.endswith('/')

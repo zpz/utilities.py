@@ -1,9 +1,11 @@
 import logging
 import time
 from abc import ABCMeta, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, asynccontextmanager
-from typing import Union, Sequence, List, Type
+from typing import Union, Sequence, List, Type, Iterable
 
+from boltons.iterutils import chunked_iter
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -157,6 +159,46 @@ class ConnectionPool:
         for conn in self._pool:
             conn.close()
 
+    def execute_stream(self,
+                       x: Iterable,
+                       func,
+                       *,
+                       batch_size,
+                       log_every_n_batches: int = 1,
+                       **kwargs):
+        assert batch_size <= 10000
+        futures = {}
+
+        def callback(t):
+            if t.cancelled():
+                raise RuntimeError('Future object has been cancelled')
+            e = t.exception()
+            if e is not None:
+                raise e
+            del futures[id(t)]
+
+        def do_one_batch(data, ibatch):
+            if log_every_n_batches and (ibatch + 1) % log_every_n_batches == 0:
+                verbose = True
+                logger.info('  doing batch #%d', ibatch + 1)
+            else:
+                verbose = False
+            with self.get_connection() as conn:
+                _ = func(conn, data, **kwargs)
+            if verbose:
+                logger.info('  done batch #%d', ibatch + 1)
+
+        with ThreadPoolExecutor(self._maxsize + 1) as executor:
+            for ibatch, batch in enumerate(chunked_iter(x, batch_size)):
+                while not self.vacancy:
+                    time.sleep(0.017)
+                t = executor.submit(do_one_batch, batch, ibatch)
+                futures[id(t)] = t
+                t.add_done_callback(callback)
+
+        while futures:
+            time.sleep(0.012)
+
 
 class AsyncConnection:
     def __init__(self, cursor):
@@ -227,6 +269,7 @@ class AsyncConnection:
 class SQLClient(metaclass=ABCMeta):
     CONNECTION_CLASS: Type[Connection] = Connection
     ASYNCCONNECTION_CLASS: Type[AsyncConnection] = AsyncConnection
+    CONNECTIONPOOL_CLASS: Type[ConnectionPool] = ConnectionPool
 
     @abstractmethod
     def connect(self):
@@ -246,7 +289,8 @@ class SQLClient(metaclass=ABCMeta):
 
     @contextmanager
     def get_connection_pool(self, maxsize: int) -> ConnectionPool:
-        pool = ConnectionPool(self.connect, maxsize, self.CONNECTION_CLASS)
+        pool = self.CONNECTIONPOOL_CLASS(
+            self.connect, maxsize, self.CONNECTION_CLASS)
         try:
             yield pool
         finally:
