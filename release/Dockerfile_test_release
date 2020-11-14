@@ -1,0 +1,25 @@
+ARG ZPZ_VERSION
+FROM zpz:${ZPZ_VERSION} as zpz-dist-img
+
+FROM python:3.8-slim
+
+RUN apt-get update \
+        && apt-get install -y --no-install-recommends --no-upgrade \
+                gcc libc6-dev g++ \
+                unixodbc-dev \
+                default-libmysqlclient-dev \
+        && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+
+COPY --from=zpz-dist-img /zpz-dist /tmp/zpz-dist
+RUN cd /tmp/zpz-dist \
+    && python -m pip install --no-cache-dir -r requirements.txt \
+    && python -m pip install *tar.gz
+
+RUN cd /tmp/zpz-dist \
+    && python -m pip install --no-cache-dir -r requirements-test.txt \
+    && py.test -s --log-cli-level info \
+        --cov=/usr/local/lib/python${PYTHON_VERSION}/site-packages/zpz \
+        --cov-fail-under 1 \
+        /tmp/zpz-dist/tests \
+    && rm -rf /tmp/zpz-dist
