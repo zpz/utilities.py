@@ -37,7 +37,7 @@ class Biglist:
             batch_size: int = None,
             *,
             keep_files: bool = None,
-            ):
+    ):
         '''
         `path`: absolute path to a directory where data for the list will be stored.
             If the directory is not empty, it must be a directory that was created previously by
@@ -91,7 +91,7 @@ class Biglist:
             if z:
                 if not os.path.isfile(self.info_file) or not os.path.isdir(self.data_dir):
                     raise RuntimeError(f"path '{self._path}' is not empty "
-                            f"but is not a valid {self.__class__.__name__} folder")
+                                       f"but is not a valid {self.__class__.__name__} folder")
                 info = json_load(self.info_file)
 
                 self.file_lengths = info['file_lengths']
@@ -99,7 +99,8 @@ class Biglist:
                     batch_size = info['batch_size']
                 else:
                     if batch_size != info['batch_size']:
-                        raise ValueError(f"`batch_size` does not agree with the existing value")
+                        raise ValueError(
+                            f"`batch_size` does not agree with the existing value")
                 for n in self.file_lengths:
                     self.cum_file_lengths.append(self.cum_file_lengths[-1] + n)
             else:
@@ -114,7 +115,7 @@ class Biglist:
         self.batch_size = batch_size
         self._read_buffer = None
         self._read_buffer_file_idx = None
-        # `self._read_buffer` contains the content of the file 
+        # `self._read_buffer` contains the content of the file
         # indicated by `self._read_buffer_file_idx`.
         self._append_buffer = None
 
@@ -242,7 +243,8 @@ class Biglist:
             return
 
         buffer_len = len(self._append_buffer)
-        pickle_z_dump(self._append_buffer, self.data_file(len(self.file_lengths)))
+        pickle_z_dump(self._append_buffer,
+                      self.data_file(len(self.file_lengths)))
         self.file_lengths.append(buffer_len)
         self.cum_file_lengths.append(self.cum_file_lengths[-1] + buffer_len)
         json_dump(
@@ -278,7 +280,8 @@ class Biglist:
         Element access by single index; negative index works as expected.
         '''
         if not isinstance(idx, int):
-            raise TypeError('A single integer index is expected. To use slice, use `view`.')
+            raise TypeError(
+                'A single integer index is expected. To use slice, use `view`.')
 
         idx = range(len(self))[idx]
         file_idx = self._get_file_idx_for_item(idx)
@@ -341,8 +344,9 @@ class Biglist:
         assert 0 <= file_idx < len(self.file_lengths)
         return BiglistView(
             self.path, self.__class__,
-            range(self.cum_file_lengths[file_idx], self.cum_file_lengths[file_idx+1]),
-            )
+            range(self.cum_file_lengths[file_idx],
+                  self.cum_file_lengths[file_idx+1]),
+        )
 
     def fileviews(self) -> List['BiglistView']:
         return [
@@ -363,7 +367,8 @@ class Biglist:
         assert path.startswith('/')
         if os.path.exists(path):
             if os.listdir(path):
-                raise FileExistsError(f"destination directory `{path}` already exists")
+                raise FileExistsError(
+                    f"destination directory `{path}` already exists")
             else:
                 os.rmdir(path)
         shutil.move(self.path, path)
@@ -374,8 +379,10 @@ class Biglist:
         if path:
             assert path.startswith('/')
             if os.path.exists(path) and os.listdir(path):
-                raise FileExistsError(f'destination directory "{path}" is not empty')
-        newlist = self.__class__(path=path, batch_size=self.batch_size, keep_files=keep_files)
+                raise FileExistsError(
+                    f'destination directory "{path}" is not empty')
+        newlist = self.__class__(
+            path=path, batch_size=self.batch_size, keep_files=keep_files)
 
         # additional call to `rmtree` here because `copytree` fails if dest dir exists
         # (even if empty). Python 3.8 has additional arg `dirs_exist_ok`.
@@ -435,7 +442,7 @@ class BiglistView:
             path=self._path,
             biglist_cls=self._biglist_cls,
             range_=self._range[idx],
-            )
+        )
 
     def _fileview_idx(self):
         if self._range.step != 1:
