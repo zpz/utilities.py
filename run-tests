@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+docker build . \
+    --build-arg PYTHON_VERSION=3.8 \
+    -t zpz-test:3.8
