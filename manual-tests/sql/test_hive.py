@@ -3,8 +3,8 @@ import os
 import arrow
 import pytest
 import impala
-from coyote.sql.hive import Hive, HiveTable
-from coyote.sql.athena import Athena, AthenaTable
+from zpz.sql.hive import Hive, HiveTable
+from zpz.sql.athena import Athena, AthenaTable
 
 
 @pytest.fixture(scope='module')
@@ -93,7 +93,7 @@ def test_write_plain(hive):
 
     # The `INSERT INTO ... VALUES` syntax is supported since Hive 0.14.
     # For older versions, use `INSERT INTO ... SELECT * FROM ( SELECT STACK (...) ) dummy_table_name`.
-    
+
     sql = '''
         INSERT INTO TABLE {db}.{tb}
         VALUES ('ab', 'cd', 23), ('xx', 'y', 45)
@@ -280,7 +280,6 @@ def test_s3_table(hive):
     assert TMP_TB_NAME not in hive.get_tables(db_name)
 
 
-
 def test_athena_hive(hive, athena):
     athena_db_name = 'tmp'
     athena_tb_name = make_tmp_name() + '_athena'
@@ -307,12 +306,14 @@ def test_athena_hive(hive, athena):
     '''
     athena_table.insert_overwrite_partition(athena, sql)
 
-    z = athena.read(f'select * from {athena_table.full_name}').fetchall_pandas()
+    z = athena.read(
+        f'select * from {athena_table.full_name}').fetchall_pandas()
     assert len(z) == 4
 
     hive_db_name = hive.user
 
-    hive_table = HiveTable.from_athena_table(athena_table, db_name=hive_db_name)
+    hive_table = HiveTable.from_athena_table(
+        athena_table, db_name=hive_db_name)
     hive_table.create(hive, drop_if_exists=True)
 
     z = hive.read(f'select * from {hive_table.full_name}').fetchall_pandas()
@@ -320,4 +321,3 @@ def test_athena_hive(hive, athena):
 
     hive_table.drop(hive)
     athena_table.drop(athena)
-

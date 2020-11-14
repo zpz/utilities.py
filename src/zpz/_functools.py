@@ -1,3 +1,8 @@
+import gc
+from contextlib import contextmanager
+from functools import wraps
+
+
 class classproperty:
     """
     Decorator that converts a method with a single cls argument
@@ -15,3 +20,20 @@ class classproperty:
     def getter(self, method):
         self.fget = method
         return self
+
+
+def no_gc():
+    isgc = gc.isenabled()
+    if isgc:
+        gc.disable()
+    yield
+    if isgc:
+        gc.enable()
+
+
+@contextmanager
+def nogc(func):
+    @wraps(func)
+    def deco(*args, **kwargs):
+        with no_gc():
+            return func(*args, **kwargs)

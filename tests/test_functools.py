@@ -1,4 +1,4 @@
-from coyote.functools import classproperty
+from zpz._functools import classproperty
 
 
 class MyClass:

@@ -1,5 +1,5 @@
 import asyncio
-from coyote.a_sync import concurrent_gather, MaybeAwait
+from zpz.a_sync import concurrent_gather, MaybeAwait
 
 import pytest
 

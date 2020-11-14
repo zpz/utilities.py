@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import time
 
-from coyote.notify import notify
+from zpz.notify import notify
 
 notifydir = Path(os.environ['NOTIFYDIR'])
 

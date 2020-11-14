@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 def notify_ok(subject: str, msg: str):
     # Need to a way to get the webhook URL of the slack channel, e.g.
     # via environment variables.
-    url = 'abc' # for example
+    url = 'abc'  # for example
     post_to_slack(url, subject, msg)
 
 
 def notify_error(subject: str, msg: str):
     # Need to a way to get the webhook URL of the slack channel, e.g.
     # via environment variables.
-    url = 'def' # for example
+    url = 'def'  # for example
     post_to_slack(url, subject, msg)
 
 
@@ -101,24 +101,24 @@ def notify(exception_classes: Exception = None,
     The file name is constructed by the package/module of the decorated function as well as the function's name.
     For example, if function `testit` in package/module `my.models.regression.linear` is being decorated,
     then the status file is `my.models.regression.linear.testit` in the notify directory.
-    
+
     If the decorated function is in a launching script (hence its `module` is named `__main__`),
     then the full path of the script is used to construct the status file's name.
     For example, if function `testthat` in script `/home/docker-user/work/scripts/do_this.py` is being decorated,
     then the status file is `home.docker-user.work.scripts.do_this.py.testthat` in the notify directory.
-    
+
     This decorator writes 'OK' in the status file if the decorated function returns successfully.
     If the decorated function raises any exception, `CRITICAL` is written along with some additional info.
-    
+
     This decorator does not write logs. If you wish to log the exception, you must handle that separately.
     If you handle the exception within the function, make sure you re-`raise` the exception so that this decorator
     can capture it (if you want it to).
-    
+
     Usually you only need to decorate the top-level function in a pipeline's launching script, like this:
-        
+
         # launcher.py
 
-        from coyote.notify import notify
+        from zpz.notify import notify
 
         @notify()
         def main():
@@ -133,7 +133,7 @@ def notify(exception_classes: Exception = None,
 
         # module `abc.py` in package `proj1.component2`
 
-        from coyote.notify import notify
+        from zpz.notify import notify
 
         class MySpecialError(Exception):
             pass
@@ -216,7 +216,7 @@ def notify(exception_classes: Exception = None,
             except:
                 status = 'OK'
                 msg = '{}\nThe function took {} to finish.\n{}'.format(
-                        decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
+                    decloc, timedelta(seconds=mytimer.stop().seconds), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,
                                      ok_silent_hours, status_msg):
                     notify_ok(status, msg)
@@ -226,4 +226,3 @@ def notify(exception_classes: Exception = None,
         return decorated
 
     return decorator
-

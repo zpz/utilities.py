@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from coyote.otherargs import parse_other_args
+from zpz.otherargs import parse_other_args
 
 
 def test_otherargs():

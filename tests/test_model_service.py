@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 
-from coyote.model_service import Modelet, ModelService
+from zpz.model_service import Modelet, ModelService
 
 
 class Scale(Modelet):

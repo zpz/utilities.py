@@ -8,7 +8,7 @@ setup(
     name='zpz',
     version=__version__,
     description='Python utilities',
-    packages=find_packages(),
+    packages=find_packages('src/'),
     include_package_data=True,
     python_requires='>=3.7',
     # install_requires=[

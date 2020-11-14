@@ -4,16 +4,18 @@ import pytest
 import shutil
 import uuid
 
-from coyote.filesys.localfs import LocalFS
+from zpz.filesys.localfs import LocalFS
 
 
 ROOT = str(Path.home().joinpath('tmp', str(uuid.uuid4()))) + '/'
+
 
 def clear(fs_):
     pwd = fs_.pwd
     if Path(pwd).is_dir():
         shutil.rmtree(pwd)
     os.mkdir(pwd)
+
 
 @pytest.fixture(scope='module')
 def fs():

@@ -1,10 +1,11 @@
 import os
 from pytest import fixture
-from coyote.filesys.path import relative_path
+from zpz.filesys.path import relative_path
 
-from coyote.spark import PySparkSession, ScalaSparkSession, SparkSession, SparkSessionError
+from zpz.spark import PySparkSession, ScalaSparkSession, SparkSession, SparkSessionError
 
 livy_server_url = None
+
 
 @fixture(scope='module')
 def pysession():
@@ -140,11 +141,15 @@ def test_func(pysession):
         return d
     '''
     pysession.run(f)
-    z = pysession.run_function('myfunc', [1,2,3], [4,6,8], ['first', 'second', 'third'])
-    assert {k: z[k] for k in sorted(z)} == {'first': 5, 'second': 8, 'third': 11}
+    z = pysession.run_function('myfunc', [1, 2, 3], [4, 6, 8], [
+                               'first', 'second', 'third'])
+    assert {k: z[k]
+            for k in sorted(z)} == {'first': 5, 'second': 8, 'third': 11}
 
-    z = pysession.run_function('myfunc', [1,2,3], [4,6,8], squared=True, names=['first', 'second', 'third'])
-    assert {k: z[k] for k in sorted(z)} == {'first': 25, 'second': 64, 'third': 121}
+    z = pysession.run_function('myfunc', [1, 2, 3], [4, 6, 8], squared=True, names=[
+                               'first', 'second', 'third'])
+    assert {k: z[k]
+            for k in sorted(z)} == {'first': 25, 'second': 64, 'third': 121}
 
 
 pi_scala = """

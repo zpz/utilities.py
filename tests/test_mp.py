@@ -1,6 +1,6 @@
 from multiprocessing import Process, Queue
 
-from coyote.mp import SubProcessError
+from zpz.mp import SubProcessError
 
 
 def goo(x, q):

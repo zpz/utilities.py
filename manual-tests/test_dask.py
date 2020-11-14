@@ -1,6 +1,6 @@
 from pytest import fixture
 
-from coyote.dask import Dask, LocalDask
+from zpz.dask import Dask, LocalDask
 
 
 # @fixture(scope='module')

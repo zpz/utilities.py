@@ -1,5 +1,5 @@
 from ..teleshell import TeleShell
-from coyote.config import get_config_file, read_ini_config
+from zpz.config import get_config_file, read_ini_config
 
 kwargs = read_ini_config('teleshell.cfg')['server']
 kwargs['known_hosts_file'] = get_config_file(kwargs['known_hosts_file'])

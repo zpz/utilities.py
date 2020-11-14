@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from coyote.streamer import (
+from zpz.streamer import (
     stream, buffer, transform, unordered_transform,
     drain, batch, unbatch)
 

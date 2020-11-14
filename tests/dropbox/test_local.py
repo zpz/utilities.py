@@ -2,7 +2,7 @@ import os
 import shutil
 from pathlib import Path
 
-from coyote.dropbox import LocalFileStore
+from zpz.dropbox import LocalFileStore
 
 
 def test_local_file_store():

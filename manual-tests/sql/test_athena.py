@@ -1,7 +1,7 @@
 import pytest
 
-from coyote.sql.athena import Athena, AthenaTable
-from coyote.sql.hive import Hive, HiveTable
+from zpz.sql.athena import Athena, AthenaTable
+from zpz.sql.hive import Hive, HiveTable
 
 
 @pytest.fixture(scope='module')
@@ -41,7 +41,7 @@ def test_athena(athena):
         ) AS source_table (a, b, c, x, y)
     '''
     table.insert_overwrite_partition(athena, sql)
-    
+
     z = athena.read(f'select * from {table.full_name}').fetchall_pandas()
     assert len(z) == 2
 
@@ -79,10 +79,12 @@ def test_hive_athena(hive, athena):
 
     athena_db_name = 'myname'
 
-    athena_table = AthenaTable.from_hive_table(hive_table, db_name=athena_db_name)
+    athena_table = AthenaTable.from_hive_table(
+        hive_table, db_name=athena_db_name)
     athena_table.create(athena, drop_if_exists=True)
 
-    z = athena.read(f'select * from {athena_table.full_name}').fetchall_pandas()
+    z = athena.read(
+        f'select * from {athena_table.full_name}').fetchall_pandas()
     assert len(z) == 3
 
     hive_table.drop(hive)

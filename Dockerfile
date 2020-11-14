@@ -100,7 +100,7 @@ RUN cd /zpz-dist \
         && python -m pip install --no-cache-dir -r requirements.txt \
         && python -m pip install --no-cache-dir -r requirements-test.txt
 
-COPY src /tmp/zpz-src
+COPY ./ /tmp/zpz-src
 RUN cd /tmp/zpz-src \
         && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
         && cd / && rm -rf /tmp/zpz-src \
