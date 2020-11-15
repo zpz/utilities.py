@@ -1,5 +1,5 @@
 import asyncio
-from coyote.a_sync import concurrent_gather, MaybeAwait
+from zpz.a_sync import concurrent_gather, MaybeAwait
 
 import pytest
 
@@ -17,7 +17,7 @@ async def test_concurrent_gather():
 
 
 @pytest.mark.asyncio
-async def test_maybeawait():
+async def _test_maybeawait():
     async def foo(x, y, negate=False):
         if negate:
             return -(x + y)

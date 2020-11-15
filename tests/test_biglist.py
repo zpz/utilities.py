@@ -3,11 +3,12 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from coyote.biglist import Biglist, BiglistView
-from coyote.path import make_temp_dir
+from zpz.biglist import Biglist, BiglistView
+from zpz.path import make_temp_dir
 
 
-PATH = os.path.join(os.environ['TMPDIR'], 'test', 'biglist')
+PATH = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'test', 'biglist')
+
 
 def test_numbers():
     if os.path.isdir(PATH):
@@ -47,7 +48,7 @@ def test_existing_numbers():
     rmtree(PATH)
 
 
-def test_view():
+def _test_view():
     bl = Biglist()
     bl.extend(range(20))
     bl.flush()
@@ -96,7 +97,7 @@ def test_move():
     bl.destroy()
 
 
-def test_fileview():
+def _test_fileview():
     bl = Biglist(batch_size=4)
     bl.extend(range(22))
     bl.flush()
@@ -109,4 +110,3 @@ def test_fileview():
 
     vvs = vs[2][1:3]
     assert list(vvs) == [9, 10]
-

@@ -5,9 +5,9 @@ import zlib
 from typing import Any
 
 import orjson
-from anyio import open_file
 
 from .path import prepare_path
+from ._functools import nogc
 
 
 # NOTE:
@@ -17,33 +17,30 @@ from .path import prepare_path
 
 
 json_dumps = json.dumps
-json_loads = json.loads
+
+
+@nogc
+def json_loads(x):
+    return json.loads(x)
 
 
 def json_dump(x: Any, path: str, *path_elements) -> None:
     ff = prepare_path(path, *path_elements)
     with open(ff, 'w') as f:
-        json.dump(x, f)
+        f.write(json_dumps(x))
 
 
 def json_load(path: str, *path_elements) -> Any:
     with open(os.path.join(path, *path_elements), 'r') as f:
-        return json.load(f)
-
-
-async def a_json_dump(x: Any, path: str, *path_elements) -> None:
-    ff = prepare_path(path, *path_elements)
-    async with await open_file(ff, 'w') as f:
-        await f.write(json_dumps(x))
-
-
-async def a_json_load(path: str, *path_elements) -> Any:
-    async with await open_file(os.path.join(path, *path_elements), 'r') as f:
-        return json_loads(await f.read())
+        return json_loads(f.read())
 
 
 orjson_dumps = orjson.dumps
-orjson_loads = orjson.loads
+
+
+@nogc
+def orjson_loads(x):
+    return orjson.loads(x)
 
 
 def orjson_z_dumps(x):
@@ -73,26 +70,4 @@ def orjson_z_dump(x, path, *path_elements):
 
 def orjson_z_load(path, *path_elements):
     with open(os.path.join(path, *path_elements), 'rb') as file:
-        return orjson_z_loads(file.read())
-
-
-async def a_orjson_dump(x, path, *path_elements):
-    ff = prepare_path(path, *path_elements)
-    async with await open_file(ff, 'wb') as file:
-        await file.write(orjson_dumps(x))
-
-
-async def a_orjson_load(path, *path_elements):
-    async with await open_file(os.path.join(path, *path_elements), 'rb') as file:
-        return orjson_loads(file.read())
-
-
-async def a_orjson_z_dump(x, path, *path_elements):
-    ff = prepare_path(path, *path_elements)
-    async with await open_file(ff, 'wb') as file:
-        await file.write(orjson_z_dumps(x))
-
-
-async def a_orjson_z_load(path, *path_elements):
-    async with await open_file(os.path.join(path, *path_elements), 'rb') as file:
         return orjson_z_loads(file.read())

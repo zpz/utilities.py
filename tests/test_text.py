@@ -3,7 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 
-from coyote.text import numpy_to_serializable, numpy_from_serializable
+from zpz.text import numpy_to_serializable, numpy_from_serializable
 
 
 def test_pretty():

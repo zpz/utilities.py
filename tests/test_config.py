@@ -1,7 +1,7 @@
 import os
 
-from coyote.path import get_temp_file
-from coyote.config import read_ini_config
+from zpz.path import get_temp_file
+from zpz.config import read_ini_config
 
 
 CONFIG = '''

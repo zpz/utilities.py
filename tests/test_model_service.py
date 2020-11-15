@@ -1,7 +1,7 @@
 import asyncio
 import pytest
 
-from coyote.model_service import Modelet, ModelService
+from zpz.model_service import Modelet, ModelService
 
 
 class Scale(Modelet):
@@ -38,7 +38,7 @@ async def test_service():
 
 
 @pytest.mark.asyncio
-async def test_batch():
+async def _test_batch():
     service = ModelService(cpus=[0])
     service.add_modelet(Square, cpus=[1, 2, 3])
     with service:

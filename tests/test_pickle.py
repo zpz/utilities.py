@@ -1,5 +1,5 @@
 import os
-from coyote.pickle import pickle_dump, pickle_load
+from zpz.pickle import pickle_dump, pickle_load
 
 
 def test_dump_load():

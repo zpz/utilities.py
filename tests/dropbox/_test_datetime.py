@@ -4,7 +4,27 @@ import shutil
 from pathlib import Path
 
 from zpz.datetime import (
-    DateRange, shift_day, shift_hour)
+    DateRange, shift_day, shift_hour,
+    write_timestamp, TIMESTAMP_FILE, read_timestamp, has_timestamp)
+
+
+def test_write_timestamp():
+    p = Path('/tmp/test_datetime')
+    if p.exists():
+        shutil.rmtree(str(p))
+
+    write_timestamp(p)
+    assert (p / TIMESTAMP_FILE).exists()
+    ts = open(p / TIMESTAMP_FILE).read()
+    assert has_timestamp(p)
+    assert read_timestamp(p) == ts
+    shutil.rmtree(str(p))
+
+    p = str(p)
+    write_timestamp(p)
+    assert (Path(p) / TIMESTAMP_FILE).exists()
+    assert has_timestamp(p)
+    shutil.rmtree(str(p))
 
 
 def test_shift_day():

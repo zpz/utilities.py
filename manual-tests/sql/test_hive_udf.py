@@ -5,8 +5,8 @@ import pathlib
 
 import numpy as numpy
 import pytest
-from coyote.sql.hive import Hive, HiveTable
-from coyote.sql import hive_udf_example, hive_udaf_example, hive_udf_args_example
+from zpz.sql.hive import Hive, HiveTable
+from zpz.sql import hive_udf_example, hive_udaf_example, hive_udf_args_example
 
 
 @pytest.fixture(scope='module')
@@ -92,7 +92,8 @@ def test_udf(hive, table):
     # 3  tesla   3000.0
 
     assert len(z) == 6
-    assert z['make'].tolist() == ['ford', 'ford', 'ford', 'honda', 'honda', 'tesla']
+    assert z['make'].tolist() == ['ford', 'ford', 'ford',
+                                  'honda', 'honda', 'tesla']
     assert np.isnan(z['price'].iloc[2])
     assert z['price'].iloc[3] == 1000
 
@@ -133,7 +134,6 @@ def test_udaf(hive, table):
     assert z['make'].tolist() == ['ford', 'honda', 'tesla']
     assert z['avg_price'].tolist() == [3000, 1500, 3000]
     assert z['null_prices'].tolist() == [1, 0, 0]
-
 
 
 def test_udf_args(hive, table):
@@ -185,7 +185,6 @@ def test_udf_args(hive, table):
     assert z['make'].tolist() == ['ford', 'ford', 'ford', 'tesla']
     assert z['price'].tolist() == [550, 2000, 4000, 3000]
 
-
     sql = make_sql('all', 340)
     print(sql)
     hive.read(sql)
@@ -203,7 +202,8 @@ def test_udf_args(hive, table):
     # 4  honda  2000.0
     # 3  tesla  3000.0
 
-    assert z['make'].tolist() == ['ford', 'ford', 'ford', 'honda', 'honda', 'tesla']
+    assert z['make'].tolist() == ['ford', 'ford', 'ford',
+                                  'honda', 'honda', 'tesla']
     assert z['price'].tolist() == [340, 2000, 4000, 1000, 2000, 3000]
 
 
@@ -233,7 +233,7 @@ def test_udf_follow_by_agg(hive, table):
     z = hive.fetchall_pandas()
     z = z.sort_values(['make', 'price_total'])
     print(z)
-    
+
     # Expected result:
     #
     #     make   price

@@ -1,1 +1,0 @@
-from .version import full as __version__

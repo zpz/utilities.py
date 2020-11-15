@@ -1,0 +1,3 @@
+FROM alpine:3
+
+COPY --from=zpz-test:latest /zpz-dist /zpz-dist

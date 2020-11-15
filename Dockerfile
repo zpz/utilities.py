@@ -94,17 +94,15 @@ RUN apt-get update \
                 default-libmysqlclient-dev \
         && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY src/requirements.txt /tmp/
-COPY requirements-test.txt /tmp/
-RUN python -m pip install -r /tmp/requirements.txt \
-        && python -m pip install -r /tmp/requirements-test.txt
+COPY requirements.txt /zpz-dist/
+COPY requirements-test.txt /zpz-dist/
+RUN cd /zpz-dist \
+        && python -m pip install --no-cache-dir -r requirements.txt \
+        && python -m pip install --no-cache-dir -r requirements-test.txt
 
-COPY src /tmp/zpz-src
-RUN cd /tmp/zpz-src && python -m pip install .
-
-COPY tests /tmp/tests
-RUN py.test -s --log-cli-level info \
-        --cov=/usr/local/lib/python${PYTHON_VERSION}/site-packages/zpz \
-        --cov-fail-under 1 \
-        /tmp/tests
-
+COPY ./ /tmp/zpz-src
+RUN cd /tmp/zpz-src \
+        && mv tests /zpz-dist/ \
+        && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
+        && cd / && rm -rf /tmp/zpz-src \
+        && python -m pip install /zpz-dist/*tar.gz

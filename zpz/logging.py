@@ -25,7 +25,6 @@ from typing import Union, Dict
 import warnings
 
 import pytz
-import pretty_errors  # Just importing will make this being used.
 
 #import os
 # raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')

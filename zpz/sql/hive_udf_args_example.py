@@ -1,5 +1,5 @@
 '''
-This is an example UDAF for Hive, to be processed by `coyote.sql.hive.make_udf` and used in tests.
+This is an example UDAF for Hive, to be processed by `zpz.sql.hive.make_udf` and used in tests.
 
 What this UDAF does:
 
