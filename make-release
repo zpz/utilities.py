@@ -27,3 +27,6 @@ docker build \
 if [ $? -ne 0 ]; then
     docker rmi zpz:${version}
 fi
+
+echo
+echo Successfully created release zpz:${version}
