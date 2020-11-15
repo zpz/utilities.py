@@ -50,16 +50,10 @@ RUN apt-get update \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /zpz-dist/
-COPY requirements-test.txt /zpz-dist/
-RUN cd /zpz-dist \
-        && python -m pip install --no-cache-dir -r requirements.txt \
-        && python -m pip install --no-cache-dir -r requirements-test.txt
+COPY ./ /zpz-src
+RUN cd /zpz-src \
+        && python -m pip install \
+                -r requirements.txt \
+                -r requirements-test.txt
 
-COPY ./ /tmp/zpz-src
-RUN cd /tmp/zpz-src \
-        && mv tests /zpz-dist/ \
-        && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
-        && cd \
-        && rm -rf /tmp/zpz-src \
-        && python -m pip install /zpz-dist/zpz-*.whl
+RUN cd /zpz-src && python -m pip install .

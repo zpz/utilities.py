@@ -1,30 +1,18 @@
 ARG ZPZ_VERSION
-FROM zpz:${ZPZ_VERSION} as zpz-dist-img
+ARG PYTHON_VERSION
 
-FROM python:3.8-slim
+
+FROM zpz:${ZPZ_VERSION} as zpz-dist-img
+# No op. Needed b/c '--from' can't take variables.
+
+
+FROM python:${PYTHON_VERSION}-slim
 
 COPY --from=zpz-dist-img /zpz-dist /tmp/zpz-dist
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends --no-upgrade \
-            gcc libc6-dev g++ \
-            unixodbc-dev \
-            default-libmysqlclient-dev \
-    && cd /tmp/zpz-dist \
-    && python -m pip install --no-cache-dir -r requirements.txt \
-    && python -m pip install zpz-*.whl \
-    && apt-get remove -y \
-        gcc libc6-dev g++ \
-        unixodbc-dev default-libmysqlclient-dev \
-    && apt-get autoremove -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
-
 RUN cd /tmp/zpz-dist \
-    && python -m pip install --no-cache-dir -r requirements-test.txt \
-    && py.test --log-cli-level warning \
-        --cov=/usr/local/lib/python3.8/site-packages/zpz \
-        --cov-fail-under 1 \
-        /tmp/zpz-dist/tests \
-    && rm -rf /tmp/zpz-dist
+    && python -m pip install --no-index --find-links=./ -r requirements.txt \
+    && python -m pip install zpz-${ZPZ_VERSION}*.whl
+
+# Install test dependencies in order to run tests.
+RUN python -m pip install -r /tmp/zpz-dist/requirements-test.txt

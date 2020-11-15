@@ -8,13 +8,13 @@ if [ "$#" -gt 0 ]; then
     # Run one specific test file.
     docker run zpz-test:latest \
         py.test -s --log-cli-level info \
-        /zpz-dist/tests/$@
+        /zpz-src/tests/$@
 else
     # Run all tests.
     docker run zpz-test:latest \
         py.test --log-cli-level warning \
         --cov=/usr/local/lib/python3.8/site-packages/zpz \
         --cov-fail-under 1 \
-        /zpz-dist/tests
+        /zpz-src/tests
 fi
 

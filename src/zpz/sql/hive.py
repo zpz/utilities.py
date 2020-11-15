@@ -127,13 +127,13 @@ class Hive(SQLClient):
             'UseNativeQuery': 1,
             'EnableAsyncExec': 1,
             'DefaultStringColumnLength': 100000,
-            **{f'SSP_{k}': f'{{{{v}}}}' for k, v in self._configuration.items()
+            **{f'SSP_{k}': f'{{{{v}}}}' for k, v in self._configuration.items()}
         }
-        return ';'.join(f'{k} = {v}' for k, v in conn_args.items()
+        return ';'.join(f'{k} = {v}' for k, v in conn_args.items())
 
     def connect(self):
-        conn_str=self.connection_string
-        conn=pyodbc.connect(conn_str, autocommit=True)
+        conn_str = self.connection_string
+        conn = pyodbc.connect(conn_str, autocommit=True)
         conn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
         conn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
         conn.setencoding(encoding='utf-8')
@@ -141,8 +141,8 @@ class Hive(SQLClient):
         return conn
 
     async def a_connect(self):
-        conn_str=self.connection_string
-        conn=await aioodbc.connect(dsn=conn_str, autocommit=True)
+        conn_str = self.connection_string
+        conn = await aioodbc.connect(dsn=conn_str, autocommit=True)
         conn._conn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
         conn._conn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
         conn._conn.setencoding(encoding='utf-8')
@@ -156,81 +156,81 @@ class HiveTableMixin:
                  db_name: str,
                  tb_name: str,
                  columns: List[Tuple[str, str]],
-                 partitions: List[Tuple[str, str]]=None,
-                 stored_as: str='ORC',
-                 field_delimiter: str='\\t',
-                 compression: str='ZLIB',
-                 location: str=None) -> None:
-        self.db_name=db_name
-        self.tb_name=tb_name
-        self.columns=[(name, type_.upper()) for (name, type_) in columns]
+                 partitions: List[Tuple[str, str]] = None,
+                 stored_as: str = 'ORC',
+                 field_delimiter: str = '\\t',
+                 compression: str = 'ZLIB',
+                 location: str = None) -> None:
+        self.db_name = db_name
+        self.tb_name = tb_name
+        self.columns = [(name, type_.upper()) for (name, type_) in columns]
         if partitions:
-            self.partitions=[(name, type_.upper())
+            self.partitions = [(name, type_.upper())
                                for (name, type_) in partitions]
         else:
-            self.partitions=[]
+            self.partitions = []
 
-        stored_as=stored_as.upper()
+        stored_as = stored_as.upper()
         assert stored_as in ('ORC', 'PARQUET', 'TEXTFILE')
-        self.stored_as=stored_as
-        self.field_delimiter=field_delimiter
-        self.compression=compression
+        self.stored_as = stored_as
+        self.field_delimiter = field_delimiter
+        self.compression = compression
 
-        self.external=False
-        self.s3external=False
+        self.external = False
+        self.s3external = False
         if location:
-            self.location=location.rstrip('/') + '/'   # Ensure trailing '/'
-            loc=self.location
+            self.location = location.rstrip('/') + '/'   # Ensure trailing '/'
+            loc = self.location
             if loc.startswith('s3://') or loc.startswith('s3n://'):
                 if loc.startswith('s3://'):
-                    z=self.location[len('s3://'):]
+                    z = self.location[len('s3://'):]
                 else:
-                    z=self.location[len('s3n://'):]
+                    z = self.location[len('s3n://'):]
                 assert '/' in z
-                self._s3_bucket_key=z[: z.find('/')]
-                self._s3_bucket_path=z[(z.find('/') + 1):]
-                self.s3external=True
-            self.external=True
+                self._s3_bucket_key = z[: z.find('/')]
+                self._s3_bucket_path = z[(z.find('/') + 1):]
+                self.s3external = True
+            self.external = True
 
     @ property
     def full_name(self):
         return self.db_name + '.' + self.tb_name
 
-    def create(self, engine, drop_if_exists: bool=False) -> None:
+    def create(self, engine, drop_if_exists: bool = False) -> None:
         '''
         `engine` is a `Hive` or `Athena` object.
         '''
         def collapse(spec):
             return ', '.join(name + ' ' + type_ for (name, type_) in spec)
 
-        columns=collapse(self.columns)
+        columns = collapse(self.columns)
 
         if self.partitions:
-            partitions=f"PARTITIONED BY ({collapse(self.partitions)})"
+            partitions = f"PARTITIONED BY ({collapse(self.partitions)})"
         else:
-            partitions=''
+            partitions = ''
 
         if self.external:
-            location=f"LOCATION '{self.location}'"
-            external='EXTERNAL'
+            location = f"LOCATION '{self.location}'"
+            external = 'EXTERNAL'
         else:
-            location=''
-            external=''
+            location = ''
+            external = ''
 
         if self.stored_as in ('ORC', 'PARQUET'):
-            stored_as=f'''
+            stored_as = f'''
                 STORED AS {self.stored_as}
                 {location}
                 TBLPROPERTIES ('{self.stored_as.lower()}.compress' = '{self.compression}')
                 '''
         else:
-            stored_as=f'''
+            stored_as = f'''
                 ROW FORMAT DELIMITED FIELDS TERMINATED BY '{self.field_delimiter}'
                 STORED AS {self.stored_as}
                 {location}
                 '''
 
-        sql=f'''
+        sql = f'''
             CREATE {external} TABLE {self.full_name}
             ({columns})
             {partitions}
@@ -257,7 +257,7 @@ class HiveTableMixin:
         in the table definition.
         '''
         assert 0 < len(partition_values) <= len(self.partitions)
-        elements=[]
+        elements = []
         for v, (k, t) in zip(partition_values, self.partitions[: len(partition_values)]):
             if t.lower() in ('string', 'char', 'varchar'):
                 elements.append(f"{k}='{v}'")
@@ -268,11 +268,11 @@ class HiveTableMixin:
     def get_partitions(self, engine, *partition_values) -> List[str]:
         if not self.partitions:
             raise Exception('not a partitioned table')
-        sql=f'SHOW PARTITIONS {self.full_name}'
+        sql = f'SHOW PARTITIONS {self.full_name}'
         if partition_values:
-            cond_str=self._partition_values_to_condition(*partition_values)
+            cond_str = self._partition_values_to_condition(*partition_values)
             sql += f' PARTITION({cond_str})'
-        z=engine.read(sql).fetchall()
+        z = engine.read(sql).fetchall()
         return [v[0] for v in z]
 
     def show_partitions(self, engine, *partition_values) -> None:
@@ -281,34 +281,34 @@ class HiveTableMixin:
     def show_partition_counts(self, engine, *partition_values):
         if not self.partitions:
             raise Exception('not a partitioned table')
-        cols=', '.join(v[0] for v in self.partitions)
-        sql=f'''
+        cols = ', '.join(v[0] for v in self.partitions)
+        sql = f'''
             SELECT
                 {cols},
                 COUNT(*) AS count
             FROM {self.full_name}'''
         if partition_values:
-            cond_str=self._partition_values_to_condition(*partition_values)
-            sql=sql + f'''
+            cond_str = self._partition_values_to_condition(*partition_values)
+            sql = sql + f'''
                 WHERE {cond_str}'''
-        sql=sql + f'''
+        sql = sql + f'''
             GROUP BY {cols}
             ORDER BY {cols}'''
-        z=engine.read(sql).fetchall_pandas()
+        z = engine.read(sql).fetchall_pandas()
         print(z)
 
     def drop_partitions(self, engine, *partition_values):
         if partition_values:
-            cond_str=self._partition_values_to_condition(*partition_values)
-            sql=f"ALTER TABLE {self.full_name} DROP IF EXISTS PARTITION({cond_str})"
+            cond_str = self._partition_values_to_condition(*partition_values)
+            sql = f"ALTER TABLE {self.full_name} DROP IF EXISTS PARTITION({cond_str})"
             engine.write(sql)
         else:
             logger.warning(
                 f'dropping all partitions in table {self.full_name}')
-            parts=self.get_partitions(engine)
+            parts = self.get_partitions(engine)
             for p in parts:
-                cond_str=p.split('/')[0]
-                sql=f"ALTER TABLE {self.full_name} DROP IF EXISTS PARTITION({cond_str})"
+                cond_str = p.split('/')[0]
+                sql = f"ALTER TABLE {self.full_name} DROP IF EXISTS PARTITION({cond_str})"
                 engine.write(sql)
 
     def add_partitions(self, engine, *partition_values):
@@ -324,37 +324,37 @@ class HiveTableMixin:
         '''
         assert self.s3external
 
-        existing_partitions=self.get_partitions(engine, *partition_values)
+        existing_partitions = self.get_partitions(engine, *partition_values)
         if not partition_values:
-            root=self.location
+            root = self.location
         else:
-            parts_path_str=self._partition_values_to_path(*partition_values)
-            parts_cond_str=self._partition_values_to_condition(
+            parts_path_str = self._partition_values_to_path(*partition_values)
+            parts_cond_str = self._partition_values_to_condition(
                 *partition_values)
-            root=self.location + parts_path_str + '/'
+            root = self.location + parts_path_str + '/'
 
-        bucket=Bucket(self._s3_bucket_key)
-        files=bucket.ls(root, recursive=True)
+        bucket = Bucket(self._s3_bucket_key)
+        files = bucket.ls(root, recursive=True)
 
         if len(partition_values) == len(self.partitions):
             if list(files):
-                sql=f'''ALTER TABLE {self.full_name} ADD PARTITION({parts_cond_str}) LOCATION '{self.location + parts_path_str}' '''
+                sql = f'''ALTER TABLE {self.full_name} ADD PARTITION({parts_cond_str}) LOCATION '{self.location + parts_path_str}' '''
                 logger.debug(sql)
                 engine.write(sql)
             return
 
-        dirs=set(v[: v.rfind('/')]
+        dirs = set(v[: v.rfind('/')]
                    for v in files if '/' in v)  # no trailing '/'
         for dd in dirs:
-            path_str=dd
+            path_str = dd
             if partition_values:
-                path_str=parts_path_str + '/' + path_str
+                path_str = parts_path_str + '/' + path_str
             if path_str not in existing_partitions:
-                cond_str=', '.join(f"{k}='{v}'" for k, v in (
+                cond_str = ', '.join(f"{k}='{v}'" for k, v in (
                     v.split('=') for v in dd.split('/')))
                 if partition_values:
-                    cond_str=parts_cond_str + ', ' + cond_str
-                sql=f'''ALTER TABLE {self.full_name} ADD PARTITION({cond_str}) LOCATION '{self.location + path_str}' '''
+                    cond_str = parts_cond_str + ', ' + cond_str
+                sql = f'''ALTER TABLE {self.full_name} ADD PARTITION({cond_str}) LOCATION '{self.location + path_str}' '''
                 logger.debug(sql)
                 engine.write(sql)
 
@@ -368,25 +368,25 @@ class HiveTableMixin:
             raise NotImplementedError
         if not partition_values:
             return self.location
-        path=self.location + \
+        path = self.location + \
             self._partition_values_to_path(*partition_values) + '/'
         return path
 
     def purge_data(self, *partition_values) -> int:
         if not self.s3external:
             raise NotImplementedError
-        bucket=Bucket(self._s3_bucket_key)
-        path=self.partition_location(*partition_values)
+        bucket = Bucket(self._s3_bucket_key)
+        path = self.partition_location(*partition_values)
         return bucket.delete_tree(path)
 
 
 class HiveTable(HiveTableMixin):
-    def __init__(self, location: str=None, **kwargs) -> None:
+    def __init__(self, location: str = None, **kwargs) -> None:
         if location:
             assert location.startswith('s3n://')
         super().__init__(**kwargs, location=location)
 
-    def to_athena_table(self, db_name: str, tb_name: str=None) -> 'AthenaTable':
+    def to_athena_table(self, db_name: str, tb_name: str = None) -> 'AthenaTable':
         '''
         Use case of this method:
 
@@ -405,9 +405,9 @@ class HiveTable(HiveTableMixin):
         '''
         from .athena import AthenaTable
         assert self.s3external
-        location=self.location
+        location = self.location
         if location.startswith('s3n://'):
-            location='s3://' + location[len('s3n://'):]
+            location = 's3://' + location[len('s3n://'):]
         return AthenaTable(
             db_name=db_name,
             tb_name=tb_name or self.tb_name,
@@ -419,14 +419,14 @@ class HiveTable(HiveTableMixin):
             location=location)
 
     @ classmethod
-    def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str=None) -> 'HiveTable':
+    def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str = None) -> 'HiveTable':
         '''
         Use case is analogous to `to_athena_table`.
         '''
         assert table.s3external
-        location=table.location
+        location = table.location
         if location.startswith('s3://'):
-            location='s3n://' + location[len('s3://'):]
+            location = 's3n://' + location[len('s3://'):]
         return cls(
             db_name=db_name,
             tb_name=tb_name or table.tb_name,
@@ -438,7 +438,7 @@ class HiveTable(HiveTableMixin):
             location=location)
 
 
-def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str='python') -> str:
+def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str = 'python') -> str:
     '''
     This function takes a Python module or a code string,
     encodes it into a byte string, which is suitable for transmission over the Internet,
@@ -517,22 +517,22 @@ def make_udf(module_or_code: Union[ModuleType, str], *args, py_command: str='pyt
     '''
 
     if inspect.ismodule(module_or_code):
-        s=inspect.getsource(module_or_code)
+        s = inspect.getsource(module_or_code)
     else:
         assert isinstance(module_or_code, str)
-        s=module_or_code
+        s = module_or_code
 
-    encoded=base64.urlsafe_b64encode(s.encode('utf-8'))
+    encoded = base64.urlsafe_b64encode(s.encode('utf-8'))
 
     assert py_command in ('python', 'python3')
     if py_command == 'python':  # 'python' is assumed to be Python 2 here.
-        script='import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code));'
+        script = 'import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code));'
     else:
-        script='import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code).decode());'
+        script = 'import sys, base64; code = sys.argv[1]; exec(base64.urlsafe_b64decode(code).decode());'
 
-    code=f'{py_command} -c "{script}" {str(encoded)[2:-1]}'
+    code = f'{py_command} -c "{script}" {str(encoded)[2:-1]}'
 
     if args:
-        code=code + ' ' + ' '.join(str(v) for v in args)
+        code = code + ' ' + ' '.join(str(v) for v in args)
 
     return code

@@ -2,7 +2,7 @@
 
 if [[ $(git branch --show-current) != master ]]; then
     >&2 echo Please switch to branch '"master"' to make release
-    exit 1
+    # exit 1
 fi
 
 ./run-tests || exit 1
@@ -13,20 +13,28 @@ echo
 echo "zpz version: ${version}"
 echo
 
-docker build -t zpz:${version} - <<EOF
-FROM alpine:3
-COPY --from=zpz-test:latest /zpz-dist /zpz-dist
-EOF
-[ $? -eq 0 ] || exit 1
+docker build \
+    -f Dockerfile_release \
+    -t zpz:${version} \
+    . || exit 1
+
 
 docker build \
     -f Dockerfile_test_release \
+    --build-arg PYTHON_VERSION=3.8 \
     --build-arg ZPZ_VERSION="${version}" \
     -t zpz-test-release:latest \
     ./
 if [ $? -ne 0 ]; then
     docker rmi zpz:${version}
+    exit 1
 fi
+
+docker run zpz-test-release:latest \
+    py.test --log-cli-level warning \
+    --cov=/usr/local/lib/python3.8/site-packages/zpz \
+    --cov-fail-under 1 \
+    /zpz-dist/tests || exit 1
 
 echo
 echo Successfully created release zpz:${version}
