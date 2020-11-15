@@ -59,7 +59,8 @@ RUN cd /zpz-dist \
 COPY ./ /tmp/zpz-src
 RUN cd /tmp/zpz-src \
         && mv tests /zpz-dist/ \
-        && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
+        && python setup.py -q sdist -d /zpz-dist \
+        && python setup.py -q bdist_wheel -d /zpz-dist \
         && cd \
         && rm -rf /tmp/zpz-src \
         && python -m pip install /zpz-dist/zpz-*.whl
