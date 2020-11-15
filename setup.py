@@ -11,6 +11,9 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     python_requires='>=3.7',
+    url='https://github.com/zpz/utilities.py',
+    author='Zepu Zhang',
+    author_email='zepu.zhang@gmail.com',
     # install_requires=[
     #     'arrow',
     #     'avro-python3==1.*',
