@@ -105,4 +105,9 @@ RUN cd /tmp/zpz-src \
         && mv tests /zpz-dist/ \
         && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
         && cd / && rm -rf /tmp/zpz-src \
-        && python -m pip install /zpz-dist/*tar.gz
+        && python -m pip install /zpz-dist/zpz-*.whl
+
+# RUN apt-get purge -y --auto-remove \
+#         gcc g++ libc6-dev unixodbc-dev default-libmysqlclient-dev \
+#         && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+
