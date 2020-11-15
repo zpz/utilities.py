@@ -17,7 +17,7 @@ async def test_concurrent_gather():
 
 
 @pytest.mark.asyncio
-async def test_maybeawait():
+async def _test_maybeawait():
     async def foo(x, y, negate=False):
         if negate:
             return -(x + y)

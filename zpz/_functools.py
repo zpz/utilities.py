@@ -22,6 +22,7 @@ class classproperty:
         return self
 
 
+@contextmanager
 def no_gc():
     isgc = gc.isenabled()
     if isgc:
@@ -31,9 +32,10 @@ def no_gc():
         gc.enable()
 
 
-@contextmanager
 def nogc(func):
     @wraps(func)
     def deco(*args, **kwargs):
         with no_gc():
             return func(*args, **kwargs)
+
+    return deco

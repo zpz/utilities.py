@@ -2,4 +2,17 @@
 
 docker build . \
     --build-arg PYTHON_VERSION=3.8 \
-    -t zpz-test:latest
+    -t zpz-test:latest || exit 1
+
+if [ "$#" -gt 0 ]; then
+    docker run zpz-test:latest \
+        py.test -s --log-cli-level info \
+        /zpz-dist/tests/$@
+else
+    docker run zpz-test:latest \
+        py.test --log-cli-level warning \
+        --cov=/usr/local/lib/python3.8/site-packages/zpz \
+        --cov-fail-under 1 \
+        /zpz-dist/tests
+fi
+

@@ -102,13 +102,7 @@ RUN cd /zpz-dist \
 
 COPY ./ /tmp/zpz-src
 RUN cd /tmp/zpz-src \
+        && mv tests /zpz-dist/ \
         && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
         && cd / && rm -rf /tmp/zpz-src \
         && python -m pip install /zpz-dist/*tar.gz
-
-
-COPY tests /zpz-dist/tests
-RUN py.test -s --log-cli-level info \
-        --cov=/usr/local/lib/python${PYTHON_VERSION}/site-packages/zpz \
-        --cov-fail-under 1 \
-        /zpz-dist/tests

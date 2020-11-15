@@ -28,7 +28,7 @@ def pickle_z_loads(x: bytes) -> Any:
 def pickle_dump(x: Any, path: str, *path_elements) -> None:
     ff = prepare_path(path, *path_elements)
     with open(ff, 'wb') as f:
-        f.write(pickle_dump(x, protocol=pickle.HIGHEST_PROTOCOL))
+        f.write(pickle_dumps(x))
 
 
 def pickle_load(path: str, *path_elements) -> Any:

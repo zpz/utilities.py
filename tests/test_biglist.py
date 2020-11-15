@@ -48,7 +48,7 @@ def test_existing_numbers():
     rmtree(PATH)
 
 
-def test_view():
+def _test_view():
     bl = Biglist()
     bl.extend(range(20))
     bl.flush()
@@ -97,7 +97,7 @@ def test_move():
     bl.destroy()
 
 
-def test_fileview():
+def _test_fileview():
     bl = Biglist(batch_size=4)
     bl.extend(range(22))
     bl.flush()

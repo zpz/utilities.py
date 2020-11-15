@@ -18,8 +18,8 @@ RUN cd /tmp/zpz-dist \
 
 RUN cd /tmp/zpz-dist \
     && python -m pip install --no-cache-dir -r requirements-test.txt \
-    && py.test -s --log-cli-level info \
-        --cov=/usr/local/lib/python${PYTHON_VERSION}/site-packages/zpz \
+    && py.test --log-cli-level warning \
+        --cov=/usr/local/lib/python3.8/site-packages/zpz \
         --cov-fail-under 1 \
         /tmp/zpz-dist/tests \
     && rm -rf /tmp/zpz-dist
