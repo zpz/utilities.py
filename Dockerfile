@@ -5,22 +5,7 @@ USER root
 
 # ENV DEBIAN_FRONTEND=noninteractive
 
-# Install `daemontools` for the `multilog` program.
-# RUN apt-update \
-#     && apt-install daemontools \
-#     && apt-clean
-
-
-# Packages for code development.
-# RUN apt-update \
-#     && apt-install gcc \
-#     && pip-install \
-#         'line-profiler==3.0.2' \
-#         'psutil==5.7.2' \
 #         'readme-renderer[md]==26.0' \
-#     && apt-remove gcc \
-#     && apt-clean
-
 # RUN pip-install \
 #         'twine==3.2.0' \
 #         'wheel==0.35.1'
@@ -43,56 +28,27 @@ USER root
 
 
 # Installing `line_profiler` needs gcc.
+
 # Use `snakeviz` to view profiling stats.
 # `snakeviz` is not installed in this Docker image as it's better
 # installed on the hosting machine 'natively'.
 
 # Other useful packages:
-#    black
-#    coverage
 #    flake8
 #    pyflakes
 #    radon
 
-# Decided to not install Sphinx; install it in specific images where needed.
 # To generate some graphs such as class hierarchy diagrams with `Sphinx`,
 # one needs to install the system package `graphviz` and Python package `graphviz`.
-
-
-
-# Hive
-#   sasl, thrift, thrift-sasl are required by impyla.
-# `impyla` has some issue with `thrift_sasl`.
-# Don't upgrade the versions of the following block w/o checking.
-#
-# Since I have no way to test Hive related functions in this personal project,
-# it is not really needed to install the following packages.
-#
-# RUN pip-install 'retrying' 'sqlparse' \
-#     && apt-update \
-#     && apt-install libsasl2-dev libsasl2-modules \
-#     && ldconfig \
-#     && apt-clean \
-#     && pip-install \
-#         'sasl==0.2.1' \
-#         'thrift==0.11.0' \
-#         'thrift_sasl==0.2.1' \
-#         'impyla==0.15.0'
-
-
-# # MySQL
-# RUN apt-update \
-#     && apt-install gcc \
-#     && apt-install libmysqlclient21 libmysqlclient-dev \
-#     && pip-install 'mysqlclient==2.0.1' \
-#     && apt-remove libmysqlclient-dev gcc
 
 RUN apt-get update \
         && apt-get install -y --no-install-recommends --no-upgrade \
                 gcc libc6-dev g++ \
                 unixodbc-dev \
                 default-libmysqlclient-dev \
-        && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
+        && apt-get autoremove -y \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt /zpz-dist/
 COPY requirements-test.txt /zpz-dist/
@@ -104,10 +60,6 @@ COPY ./ /tmp/zpz-src
 RUN cd /tmp/zpz-src \
         && mv tests /zpz-dist/ \
         && python setup.py sdist -d /zpz-dist bdist_wheel -d /zpz-dist \
-        && cd / && rm -rf /tmp/zpz-src \
+        && cd \
+        && rm -rf /tmp/zpz-src \
         && python -m pip install /zpz-dist/zpz-*.whl
-
-# RUN apt-get purge -y --auto-remove \
-#         gcc g++ libc6-dev unixodbc-dev default-libmysqlclient-dev \
-#         && apt-get autoremove -y && apt-get clean && rm -rf /var/lib/apt/lists/*
-

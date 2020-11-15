@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# ./run-tests || exit 1
+
+version=$(docker run --rm zpz-test:latest pip show zpz | grep Version)
+version=${version#* }
+echo
+echo "zpz version: ${version}"
+echo
+
+docker build -t zpz:${version} - <<EOF
+FROM alpine:3
+COPY --from=zpz-test:latest /zpz-dist /zpz-dist
+EOF
