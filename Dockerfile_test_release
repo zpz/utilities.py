@@ -12,7 +12,7 @@ COPY --from=zpz-dist-img /zpz-dist /tmp/zpz-dist
 
 RUN cd /tmp/zpz-dist \
     && python -m pip install --no-index --find-links=./ -r requirements.txt \
-    && python -m pip install zpz-${ZPZ_VERSION}*.whl
+    && python -m pip install --find-links=./ zpz
 
 # Install test dependencies in order to run tests.
 RUN python -m pip install -r /tmp/zpz-dist/requirements-test.txt

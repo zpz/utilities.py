@@ -5,7 +5,10 @@ if [[ $(git branch --show-current) != master ]]; then
     # exit 1
 fi
 
-./run-tests || exit 1
+docker build \
+    --build-arg PYTHON_VERSION=3.8 \
+    -t zpz-test:latest \
+    . || exit 1
 
 version=$(docker run --rm zpz-test:latest pip show zpz | grep Version)
 version=${version#* }
@@ -33,8 +36,12 @@ fi
 docker run zpz-test-release:latest \
     py.test --log-cli-level warning \
     --cov=/usr/local/lib/python3.8/site-packages/zpz \
-    --cov-fail-under 1 \
-    /zpz-dist/tests || exit 1
+    --cov-fail-under 30 \
+    /tmp/zpz-dist/tests
+if [ $? -ne 0 ]; then
+    docker rmi zpz:${version}
+    exit 1
+fi
 
 echo
 echo Successfully created release zpz:${version}

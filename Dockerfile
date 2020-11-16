@@ -50,10 +50,11 @@ RUN apt-get update \
         && apt-get clean \
         && rm -rf /var/lib/apt/lists/*
 
-COPY ./ /zpz-src
-RUN cd /zpz-src \
-        && python -m pip install \
-                -r requirements.txt \
-                -r requirements-test.txt
+COPY requirements.txt /tmp
+COPY requirements-test.txt /tmp
+RUN python -m pip install \
+        -r /tmp/requirements.txt \
+        -r /tmp/requirements-test.txt
 
+COPY ./ /zpz-src
 RUN cd /zpz-src && python -m pip install .
