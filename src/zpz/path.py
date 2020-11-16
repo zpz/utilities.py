@@ -144,6 +144,11 @@ def make_temp_dir() -> str:
 
 
 def prepare_path(path, *path_elements):
+    '''
+    The arguments specify a file name.
+    This function makes sure the full path above the file
+    exists, and returns the file path.
+    '''
     ff = os.path.join(path, *path_elements)
     dirname = os.path.dirname(os.path.abspath(ff))
     if not os.path.isdir(dirname):
