@@ -5,8 +5,10 @@ import tempfile
 from copy import deepcopy
 from typing import Union, List, Callable, Type, Iterable
 
-from .json import json_load, json_dump
-from .pickle import pickle_z_load, pickle_z_dump
+from .serde import (
+    json_load, json_dump,
+    pickle_z_load, pickle_z_dump,
+)
 
 
 class Biglist:

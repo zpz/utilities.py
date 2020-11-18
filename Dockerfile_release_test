@@ -11,8 +11,9 @@ FROM python:${PYTHON_VERSION}-slim
 COPY --from=zpz-dist-img /zpz-dist /tmp/zpz-dist
 
 RUN cd /tmp/zpz-dist \
-    && python -m pip install --no-index --find-links=./ -r requirements.txt \
-    && python -m pip install --find-links=./ zpz
+    && python -m pip install -r requirements-1.txt \
+    && python -m pip install --no-index --find-links=./ -r requirements-2.txt \
+    && python -m pip install --no-index --find-links=./ zpz
 
 # Install test dependencies in order to run tests.
 RUN python -m pip install -r /tmp/zpz-dist/requirements-test.txt

@@ -1,0 +1,9 @@
+FROM zpz-test:latest AS base
+
+RUN cd /zpz-src \
+        && mkdir /zpz-dist \
+        && cp requirements-*.txt /zpz-dist/ \
+        && mv tests /zpz-dist/ \
+        && python setup.py sdist -d /zpz-dist \
+        && python setup.py bdist_wheel -d /zpz-dist \
+        && python -m pip wheel -r requirements-2.txt -w /zpz-dist

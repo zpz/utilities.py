@@ -1,0 +1,10 @@
+
+# Packages that require extra libraries, compilers, etc.
+# We'll build wheels for these.
+
+line-profiler>=3
+psutil>=5
+
+mysqlclient==2.*
+aioodbc>=0.3.3
+pyodbc==4.*
