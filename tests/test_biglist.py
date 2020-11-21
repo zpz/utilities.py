@@ -3,7 +3,7 @@ import os.path
 from shutil import rmtree
 
 import pytest
-from zpz.biglist import Biglist, BiglistView
+from zpz.biglist import Biglist, ListView
 from zpz.path import make_temp_dir
 
 
