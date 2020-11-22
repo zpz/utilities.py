@@ -6,53 +6,39 @@ if [[ $(git branch --show-current) != master ]]; then
 fi
 
 docker build \
-    -f Dockerfile_test \
     --build-arg PYTHON_VERSION=3.8 \
-    -t zpz-test:latest \
+    --target release-test \
+    -t zpz-release-test:latest \
     . || exit 1
 
-version=$(docker run --rm zpz-test:latest pip show zpz | grep Version)
+docker run --rm zpz-release-test:latest \
+    py.test --log-cli-level warning \
+    --cov=/usr/local/lib/python3.8/site-packages/zpz \
+    --cov-fail-under 30 \
+    /zpz-dist/tests
+if [ $? -ne 0 ]; then
+    docker rmi zpz-release-test:latest
+    exit 1
+fi
+
+
+version=$(docker run --rm zpz-release-test:latest pip show zpz | grep Version)
 version=${version#* }
 echo
 echo "zpz version: ${version}"
 echo
 
-docker build \
-    -f Dockerfile_release_base \
-    -t zpz-release-base:latest \
-    . || exit 1
 docker build -t zppz/zpz:${version} - <<EOF
 FROM alpine:3
 
-COPY --from=zpz-release-base:latest /zpz-dist /zpz-dist
+COPY --from=zpz-release-test:latest /zpz-dist /zpz-dist
 EOF
 if [[ $? != 0 ]]; then
-    docker rmi zpz-release-base:latest
-    exit 1
-fi
-
-docker build \
-    -f Dockerfile_release_test \
-    --build-arg PYTHON_VERSION=3.8 \
-    --build-arg ZPZ_VERSION="${version}" \
-    -t zpz-release-test:latest \
-    ./
-if [ $? -ne 0 ]; then
-    docker rmi zppz/zpz:${version}
-    docker rmi zpz-release-base:latest
-    exit 1
-fi
-
-docker run zpz-release-test:latest \
-    py.test --log-cli-level warning \
-    --cov=/usr/local/lib/python3.8/site-packages/zpz \
-    --cov-fail-under 30 \
-    /tmp/zpz-dist/tests
-if [ $? -ne 0 ]; then
     docker rmi zpz-release-test:latest
-    docker rmi zpz:${version}
     exit 1
 fi
+docker rmi zpz-release-test:latest
+
 
 echo
 echo Successfully created release zppz/zpz:${version}

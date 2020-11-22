@@ -1,6 +1,7 @@
 ARG PYTHON_VERSION=3.8
 
-FROM python:${PYTHON_VERSION}-slim
+#################################################
+FROM python:${PYTHON_VERSION}-slim AS build
 USER root
 
 # ENV DEBIAN_FRONTEND=noninteractive
@@ -58,3 +59,29 @@ RUN python -m pip install \
 
 COPY ./ /zpz-src
 RUN cd /zpz-src && python -m pip install -q .
+
+
+#################################################
+FROM build AS release-prep
+
+RUN cd /zpz-src \
+        && mkdir /zpz-dist \
+        && cp requirements-*.txt /zpz-dist/ \
+        && mv tests /zpz-dist/ \
+        && python setup.py sdist -d /zpz-dist \
+        && python setup.py bdist_wheel -d /zpz-dist \
+        && python -m pip wheel -r requirements-2.txt -w /zpz-dist
+
+
+#################################################
+FROM python:${PYTHON_VERSION}-slim AS release-test
+
+COPY --from=release-prep /zpz-dist /zpz-dist
+
+RUN cd /zpz-dist \
+    && python -m pip install -r /zpz-dist/requirements-1.txt \
+    && python -m pip install --no-index --find-links=/zpz-dist/ -r /zpz-dist/requirements-2.txt \
+    && python -m pip install --no-index --find-links=/zpz-dist/ zpz
+
+# Install test dependencies in order to run tests.
+RUN python -m pip install -r /zpz-dist/requirements-test.txt

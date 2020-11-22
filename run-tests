@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 
 docker build \
-    -f Dockerfile_test \
     --build-arg PYTHON_VERSION=3.8 \
+    --target build \
     -t zpz-test:latest \
     . || exit 1
 
