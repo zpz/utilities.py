@@ -1,6 +1,7 @@
 import io
 import logging
 from time import perf_counter
+from typing import Union
 
 import httpcore
 import httpx
@@ -43,9 +44,12 @@ class ClientTimeout(httpx.Timeout):
 
 
 class AsyncClientSession(httpx.AsyncClient):
-    def __init__(self, *, timeout: ClientTimeout = None, **kwargs):
-        if timeout is None:
-            timeout = ClientTimeout()
+    def __init__(self,
+                 *,
+                 timeout: Union[ClientTimeout, float, int] = None,
+                 **kwargs):
+        if not isinstance(timeout, ClientTimeout):
+            timeout = ClientTimeout(timeout)
         super().__init__(timeout=timeout, **kwargs)
 
 
@@ -158,9 +162,11 @@ async def a_rest_request(
 
 
 class ClientSession(httpx.Client):
-    def __init__(self, *, timeout: ClientTimeout = None, **kwargs):
-        if timeout is None:
-            timeout = ClientTimeout()
+    def __init__(self, *,
+                 timeout: Union[ClientTimeout, float, int] = None,
+                 **kwargs):
+        if not isinstance(timeout, ClientTimeout):
+            timeout = ClientTimeout(timeout)
         super().__init__(timeout=timeout, **kwargs)
 
 

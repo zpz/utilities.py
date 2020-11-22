@@ -21,7 +21,7 @@ docker build \
     -f Dockerfile_release_base \
     -t zpz-release-base:latest \
     . || exit 1
-docker build -t zpz:${version} - <<EOF
+docker build -t zppz/zpz:${version} - <<EOF
 FROM alpine:3
 
 COPY --from=zpz-release-base:latest /zpz-dist /zpz-dist
@@ -38,7 +38,7 @@ docker build \
     -t zpz-release-test:latest \
     ./
 if [ $? -ne 0 ]; then
-    docker rmi zpz:${version}
+    docker rmi zppz/zpz:${version}
     docker rmi zpz-release-base:latest
     exit 1
 fi
@@ -55,4 +55,4 @@ if [ $? -ne 0 ]; then
 fi
 
 echo
-echo Successfully created release zpz:${version}
+echo Successfully created release zppz/zpz:${version}

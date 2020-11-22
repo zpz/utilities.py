@@ -2,7 +2,7 @@ ARG ZPZ_VERSION
 ARG PYTHON_VERSION
 
 
-FROM zpz:${ZPZ_VERSION} as zpz-dist-img
+FROM zppz/zpz:${ZPZ_VERSION} as zpz-dist-img
 # No op. Needed b/c '--from' can't take variables.
 
 

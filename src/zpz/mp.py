@@ -1,3 +1,4 @@
+import multiprocessing
 import sys
 from traceback import format_exc
 
@@ -6,6 +7,9 @@ from traceback import format_exc
 # will handle remote exceptions properly, hence
 # using those in place of a raw Process is recommended
 # when possible.
+
+
+MAX_THREADS = min(32, multiprocessing.cpu_count() + 4)
 
 
 def full_class_name(cls):

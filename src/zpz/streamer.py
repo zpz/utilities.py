@@ -4,7 +4,9 @@ import typing
 from collections.abc import AsyncIterable, AsyncIterator, Iterable
 from typing import Callable, Awaitable, Any, TypeVar
 
-from .a_sync import create_loud_task, IO_WORKERS
+from .a_sync import create_loud_task
+from .mp import MAX_THREADS
+
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ async def transform(
     Pass in 0 or 1 to enforce single worker.
     '''
     if workers is None:
-        workers = IO_WORKERS
+        workers = MAX_THREADS
 
     if workers < 2:
         async for x in in_stream:
@@ -180,7 +182,7 @@ async def unordered_transform(
     **func_args,
 ):
     if workers is None:
-        workers = IO_WORKERS
+        workers = MAX_THREADS
     assert workers > 1
 
     if out_buffer_size is None:

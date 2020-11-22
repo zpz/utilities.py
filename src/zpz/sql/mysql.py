@@ -10,7 +10,6 @@ import MySQLdb as mysqlclient
 from boltons.iterutils import chunked_iter
 
 from .sql import SQLClient, Connection, AsyncConnection, ConnectionPool
-from ..a_sync import IO_WORKERS
 
 logger = logging.getLogger(__name__)
 
