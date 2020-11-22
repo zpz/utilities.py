@@ -85,3 +85,9 @@ RUN cd /zpz-dist \
 
 # Install test dependencies in order to run tests.
 RUN python -m pip install -r /zpz-dist/requirements-test.txt
+
+
+#################################################
+FROM alpine:3 AS release
+
+COPY --from=zpz-release-test:latest /zpz-dist /zpz-dist

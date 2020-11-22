@@ -28,11 +28,7 @@ echo
 echo "zpz version: ${version}"
 echo
 
-docker build -t zppz/zpz:${version} - <<EOF
-FROM alpine:3
-
-COPY --from=zpz-release-test:latest /zpz-dist /zpz-dist
-EOF
+docker build --target release -t zppz/zpz:${version} .
 if [[ $? != 0 ]]; then
     docker rmi zpz-release-test:latest
     exit 1
