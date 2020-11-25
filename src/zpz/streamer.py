@@ -4,7 +4,6 @@ import typing
 from collections.abc import AsyncIterable, AsyncIterator, Iterable
 from typing import Callable, Awaitable, Any, TypeVar
 
-from .a_sync import create_loud_task
 from .mp import MAX_THREADS
 
 
@@ -53,9 +52,11 @@ async def buffer(in_stream: AsyncIterable, buffer_size: int = None):
             await out_stream.put(x)
         await out_stream.put(NO_MORE_DATA)
 
-    t = create_loud_task(buff(in_stream, out_stream))
+    t = asyncio.create_task(buff(in_stream, out_stream))
 
     while True:
+        if t.done() and t.exception() is not None:
+            raise t.exception()
         x = await out_stream.get()
         if x is NO_MORE_DATA:
             break
@@ -142,8 +143,10 @@ async def transform(
                     finished = True
                     await out_stream.put(NO_MORE_DATA)
                     break
+
                 fut = asyncio.Future()
                 await out_stream.put(fut)
+
             y = await func(x, **kwargs)
             fut.set_result(y)
 
@@ -153,7 +156,7 @@ async def transform(
     lock = asyncio.Lock()
 
     t_workers = [
-        create_loud_task(_process(
+        asyncio.create_task(_process(
             in_stream,
             lock,
             out_stream,
@@ -164,12 +167,15 @@ async def transform(
     ]
 
     while True:
+        for t in t_workers:
+            if t.done() and t.exception() is not None:
+                raise t.exception()
         fut = await out_stream.get()
         if fut is NO_MORE_DATA:
             break
         yield await fut
 
-    for t in t_workers:
+    for t in asyncio.as_completed(t_workers):
         await t
 
 
@@ -212,7 +218,7 @@ async def unordered_transform(
             await out_stream.put(NO_MORE_DATA)
 
     t_workers = [
-        create_loud_task(_process(
+        asyncio.create_task(_process(
             in_stream, lock, out_stream,
             func, **func_args,
         ))
@@ -220,12 +226,15 @@ async def unordered_transform(
     ]
 
     while True:
+        for t in t_workers:
+            if t.done() and t.exception() is not None:
+                raise t.exception()
         y = await out_stream.get()
         if y is NO_MORE_DATA:
             break
         yield y
 
-    for t in t_workers:
+    for t in asyncio.as_completed(t_workers):
         await t
 
 
