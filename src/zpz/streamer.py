@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import typing
-from collections.abc import AsyncIterable, AsyncIterator, Iterable
+from collections.abc import AsyncIterable, Iterable
 from typing import Callable, Awaitable, Any, TypeVar
 
 from .mp import MAX_THREADS
@@ -143,12 +143,21 @@ async def transform(
                     finished = True
                     await out_stream.put(NO_MORE_DATA)
                     break
+                except Exception as e:
+                    fut = asyncio.Future()
+                    await out_stream.put(fut)
+                    fut.set_exception(e)
+                    return
 
                 fut = asyncio.Future()
                 await out_stream.put(fut)
 
-            y = await func(x, **kwargs)
-            fut.set_result(y)
+            try:
+                y = await func(x, **kwargs)
+                fut.set_result(y)
+            except Exception as e:
+                fut.set_exception(e)
+                return
 
     if out_buffer_size is None:
         out_buffer_size = workers * 8
@@ -167,9 +176,6 @@ async def transform(
     ]
 
     while True:
-        for t in t_workers:
-            if t.done() and t.exception() is not None:
-                raise t.exception()
         fut = await out_stream.get()
         if fut is NO_MORE_DATA:
             break
@@ -198,9 +204,14 @@ async def unordered_transform(
     lock = asyncio.Lock()
     n_active_workers = workers
 
+    class TaskError:
+        def __init__(self, e):
+            self.e = e
+
     async def _process(in_stream, lock, out_stream, func, **kwargs):
         nonlocal finished
         while not finished:
+            error = None
             async with lock:
                 if finished:
                     break
@@ -209,8 +220,18 @@ async def unordered_transform(
                 except StopAsyncIteration:
                     finished = True
                     break
-            y = await func(x, **kwargs)
-            await out_stream.put(y)
+                except Exception as e:
+                    error = e
+
+            if error is not None:
+                await out_stream.put(TaskError(error))
+                return
+            try:
+                y = await func(x, **kwargs)
+                await out_stream.put(y)
+            except Exception as e:
+                await out_stream.put(TaskError(e))
+                return
 
         nonlocal n_active_workers
         n_active_workers -= 1
@@ -226,12 +247,11 @@ async def unordered_transform(
     ]
 
     while True:
-        for t in t_workers:
-            if t.done() and t.exception() is not None:
-                raise t.exception()
         y = await out_stream.get()
         if y is NO_MORE_DATA:
             break
+        if isinstance(y, TaskError):
+            raise y.e
         yield y
 
     for t in asyncio.as_completed(t_workers):
