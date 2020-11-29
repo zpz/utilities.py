@@ -9,12 +9,12 @@ from tenacity import (
     retry, stop_after_attempt,
     wait_random_exponential, retry_if_exception_type)
 
-from .json import (
+from .serde import (
     orjson_dumps, orjson_loads,
-    orjson_z_dumps, orjson_z_loads)
-from .pickle import (
+    orjson_z_dumps, orjson_z_loads,
     pickle_dumps, pickle_loads,
-    pickle_z_dumps, pickle_z_loads)
+    pickle_z_dumps, pickle_z_loads,
+)
 
 logger = logging.getLogger(__name__)
 
