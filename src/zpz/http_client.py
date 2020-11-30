@@ -61,7 +61,7 @@ class AsyncClientSession(httpx.AsyncClient):
         httpx.RemoteProtocolError, httpcore.RemoteProtocolError,
     ))
 )
-async def _a_request(func, url, **Kwargs):
+async def _a_request(func, url, **kwargs):
     time0 = perf_counter()
     try:
         response = await func(url, **kwargs)
@@ -91,8 +91,6 @@ async def a_rest_request(
         session: AsyncClientSession,
         payload=None,
         payload_type: str = 'json',
-        ignore_client_error: bool = False,
-        ignore_server_error: bool = False,
         **kwargs,
 ):
     '''
@@ -130,6 +128,8 @@ async def a_rest_request(
     kwargs['headers'] = {'content-type': 'application/' + payload_type}
 
     response = await _a_request(func, url, **kwargs)
+    response.raise_for_status()
+    # Could raise `httpx.HTTPStatusError`.
 
     response_content_type = response.headers['content-type']
     if response_content_type.starswith('text/plain'):
@@ -145,20 +145,7 @@ async def a_rest_request(
         }[response_content_type]
         data = f(await response.read())
 
-    if 200 <= response.status_code < 300:
-        return data
-
-    if 400 <= response.status_code < 500 and ignore_client_error:
-        return data
-
-    if 500 <= response.status_code and ignore_server_error:
-        return data
-
-    response.raise_for_status()
-
-    # Raise exception in case the above does not raise.
-    logger.exception('%d, %s; %s', response.status_code, str(data), url)
-    raise RuntimeError(f'request to {url} failed with response:\n{data}')
+    return data
 
 
 class ClientSession(httpx.Client):
@@ -177,8 +164,6 @@ def rest_request(
         session: ClientSession,
         payload=None,
         payload_type: str = 'json',
-        ignore_client_error: bool = False,
-        ignore_server_error: bool = False,
         **kwargs):
     method = method.lower()
     if method == 'get':
@@ -220,6 +205,9 @@ def rest_request(
         logger.error('timed out after %d seconds', timeout_duration)
         raise
 
+    response.raise_for_status()
+    # Could raise `httpx.HTTPStatusError`.
+
     response_content_type = response.headers.get('content-type')
     if response_content_type.starswith('text/plain'):
         data = response.text
@@ -234,17 +222,4 @@ def rest_request(
         }[response_content_type]
         data = f(response.content)
 
-    if 200 <= response.status_code < 300:
-        return data
-
-    if 400 <= response.status_code < 500 and ignore_client_error:
-        return data
-
-    if 500 <= response.status_code and ignore_server_error:
-        return data
-
-    response.raise_for_status()
-
-    # Raise exception in case the above does not raise.
-    logger.exception('%d, %s; %s', response.status_code, str(data), url)
-    raise RuntimeError(f'request to {url} failed with response:\n{data}')
+    return data

@@ -48,10 +48,10 @@ async def get_request_data(request):
     return request_content_type, data
 
 
-async def get_form_data(request):
-    # This needs the `python-multipart` package installed.
-    form = await request.form()
-    return form
+# async def get_form_data(request):
+#     # This needs the `python-multipart` package installed.
+#     form = await request.form()
+#     return form
 
 
 class ORJSONResponse(Response):
@@ -63,7 +63,7 @@ class ORJSONResponse(Response):
 
 def make_response(data, content_type, status=200):
     if content_type == 'application/json':
-        return make_json_response(data, status)
+        return JSONResponse(data, status)
 
     cmd = REQUEST_DUMPERS[content_type]
     return StreamingResponse(
@@ -73,20 +73,20 @@ def make_response(data, content_type, status=200):
     )
 
 
-def make_text_response(text, status=200):
-    return PlainTextResponse(text, status_code=status)
+# def make_text_response(text, status=200):
+#     return PlainTextResponse(text, status_code=status)
 
 
-def make_json_response(data, status=200):
-    return JSONResponse(data, status_code=status)
+# def make_json_response(data, status=200):
+#     return JSONResponse(data, status_code=status)
 
 
-def make_orjson_response(data, status=200):
-    return ORJSONResponse(data, status_code=status)
+# def make_orjson_response(data, status=200):
+#     return ORJSONResponse(data, status_code=status)
 
 
-def make_html_response(text):
-    return HTMLResponse(text)
+# def make_html_response(text):
+#     return HTMLResponse(text)
 
 
 def make_exc_response(exc, data=None):
@@ -94,13 +94,13 @@ def make_exc_response(exc, data=None):
         status = exc.status_code
     except:
         status = 500
-    return make_json_response(
+    return JSONResponse(
         {
             'status': 'Internal Server Error',
             'error': exc.__class__.__name__ + ': ' + str(exc),
             'data': str(data),
         },
-        status=status,
+        status_code=status,
     )
 
 
