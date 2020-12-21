@@ -14,7 +14,7 @@ from typing import List, Type, Union, Tuple
 
 import psutil
 
-from .mp import SubProcessError
+from .mp import MpError
 
 
 logger = logging.getLogger(__name__)
@@ -47,9 +47,9 @@ class Modelet(metaclass=ABCMeta):
                 if not self.silent_errors or not isinstance(e, self.silent_errors):
                     logger.info(e)
                 # There are opportunities to print traceback
-                # and details later using the `SubProcessError`
+                # and details later using the `MpError`
                 # object. Be brief on the logging here.
-                err = SubProcessError(e)
+                err = MpError(e)
                 q_err.put((uid, err))
 
     def _start_batch(self, *, q_in, q_out, q_err, q_in_lock):
@@ -84,7 +84,7 @@ class Modelet(metaclass=ABCMeta):
             except Exception as e:
                 if not self.silent_errors or not isinstance(e, self.silent_errors):
                     logger.info(e)
-                err = SubProcessError(e)
+                err = MpError(e)
                 for uid in uids:
                     q_err.put((uid, err))
             else:
