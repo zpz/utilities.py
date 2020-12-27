@@ -29,7 +29,7 @@ REQUEST_LOADERS = {
     'application/pickle-stream': pickle_loads,
     'application/pickle-z-stream': pickle_z_loads,
 }
-REQUEST_DUMPERS = {
+RESPONSE_DUMPERS = {
     'application/orjson-stream': orjson_dumps,
     'application/orjson-z-stream': orjson_z_dumps,
     'application/pickle-stream': pickle_dumps,
@@ -42,7 +42,11 @@ async def get_request_data(request):
     if request_content_type == 'application/json':
         data = await request.json()
     else:
-        cmd = REQUEST_LOADERS[request_content_type]
+        try:
+            cmd = REQUEST_LOADERS[request_content_type]
+        except KeyError as e:
+            raise ValueError(
+                f'unknown content-type "{request_content_type}"') from e
         data = cmd(await request.body())
 
     return request_content_type, data
@@ -61,16 +65,16 @@ class ORJSONResponse(Response):
         return orjson_dumps(content)
 
 
-def make_response(data, content_type, status=200):
-    if content_type == 'application/json':
-        return JSONResponse(data, status)
+# def make_response(data, content_type, status=200):
+#     if content_type == 'application/json':
+#         return JSONResponse(data, status)
 
-    cmd = REQUEST_DUMPERS[content_type]
-    return StreamingResponse(
-        BytesIO(cmd(data)),
-        media_type=content_type,
-        status_code=status,
-    )
+#     cmd = RESPONSE_DUMPERS[content_type]
+#     return StreamingResponse(
+#         BytesIO(cmd(data)),
+#         media_type=content_type,
+#         status_code=status,
+#     )
 
 
 # def make_text_response(text, status=200):
