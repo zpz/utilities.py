@@ -217,55 +217,30 @@ class Biglist(Sequence, AbstractContextManager):
     STORAGE_FORMATS = ['pickle', 'orjson', 'pickle_z', 'orjson_z', 'marshal']
     DEFAULT_STORAGE_FORMAT = 'pickle'
 
-    def __init__(
-            self,
-            path: str = None,
-            *,
-            batch_size: int = None,
-            keep_files: bool = None,
-            storage_format: str = None,
-    ):
-        '''
-        `path`: absolute path to a directory where data for the list
-            are or will be stored.
+    @classmethod
+    def new(cls, path: str = None, keep_files: bool = None, **kwargs):
+        if not path:
+            path = tempfile.mkdtemp()
+            if keep_files is None:
+                keep_files = False
+        else:
+            path = os.path.abspath(path)
+            if keep_files is None:
+                keep_files = True
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                if os.listdir(path):
+                    raise Exception(f'directory "{path}" already exists')
+            else:
+                raise Exception(f'directory "{path}" not available')
+        obj = cls(path)
+        obj._keep_files = keep_files
+        obj._new(**kwargs)
+        return obj
 
-        if `path` is `None`:
+    def __init__(self, path: str):
+        path = os.path.abspath(path)
 
-            A new Biglist is created and a temporary directory is created for it
-            to store its data.
-
-            The storage will be kept or deleted after use, according to `keep_files`.
-            If `keep_files` is `None` (the default), it will be changed to `False`.
-
-            `storage_format` specifies format of the persistent files.
-
-        If `path` is not `None`:
-
-            If the path is empty, a new Biglist object is created and will use that directory
-            for storage.
-
-                The storage will be kept or deleted after use, according to `keep_files`.
-                If `keep_files` is `None` (the default), it will be changed to `True`.
-
-            If the path is NOT empty, then the directory must be a directory
-            that is the storage space for an existing Biglist.
-            This `__init__` points to this path, ready to read the existing data,
-            and append to it.
-
-                `storage_format` is ignored. The format of existing data
-                is detected and used.
-
-            If `keep_files` is not specified (i.e. at the default value `None`),
-            then files will not be deleted. Otherwise, they are kept or deleted
-            as requested.
-
-        `batch_size`: number of list elements contained in the in-memory buffer as well as in
-            one on-disk file (multiple files will be created as needed).
-
-            If `path` points to an existing `Biglist`,
-            `batch_size` should not be specified. The batch size
-            of the existing Biglist will be used.
-        '''
         self.path = path
         self._read_buffer = None
         self._read_buffer_file_idx = None
@@ -275,63 +250,41 @@ class Biglist(Sequence, AbstractContextManager):
         self.file_lengths = []
         self.cum_file_lengths = [0]
         self._append_buffer = []
-        self._storage_format = storage_format
+        self._storage_format = None
 
-        if not self.path:
-            self.path = tempfile.mkdtemp()
-            if keep_files is None:
-                keep_files = False
-        else:
-            if keep_files is None:
-                keep_files = True
-        self._keep_files = keep_files
+        self.batch_size = None
 
-        assert self.path.startswith('/')
-
-        if os.path.isdir(self.path):
-            z = os.listdir(self.path)
-            if z:
-                err_msg = f"path '{self.path}' is not empty but is not a valid {self.__class__.__name__} folder"
-                if not os.path.isdir(self.data_dir):
-                    raise Exception(err_msg)
-                if os.path.isfile(self.info_file):
-                    info = json_load(self.info_file)
-                else:
-                    raise Exception(err_msg)
-
-                self.file_lengths = info['file_lengths']
-                if batch_size is None:
-                    batch_size = info['batch_size']
-                else:
-                    if batch_size != info['batch_size']:
-                        raise ValueError(
-                            f"`batch_size` does not agree with the existing value")
-                for n in self.file_lengths:
-                    self.cum_file_lengths.append(self.cum_file_lengths[-1] + n)
-                self._storage_format = info['storage_format']
-            else:
-                os.makedirs(self.data_dir)
-
-                if self._storage_format:
-                    assert self._storage_format in self.STORAGE_FORMATS
-                else:
-                    self._storage_format = self.DEFAULT_STORAGE_FORMAT
-        else:
-            os.makedirs(self.data_dir)
-
-            if self._storage_format:
-                assert self._storage_format in self.STORAGE_FORMATS
-            else:
-                self._storage_format = self.DEFAULT_STORAGE_FORMAT
-
-        if batch_size is None:
-            batch_size = 10000
-        else:
-            assert batch_size > 0
-        self.batch_size = batch_size
+        self._keep_files = True
 
         self._file_dumper = Dumper()
         self._file_loader = Loader()
+
+        if os.path.isdir(self.path) and os.listdir(self.path):
+            if os.path.isfile(self.info_file):
+                info = json_load(self.info_file)
+            else:
+                raise Exception(
+                    f"directory '{self.path}' is not empty but is not a valid {self.__class__.__name__} folder")
+
+            self.file_lengths = info['file_lengths']
+            self.batch_size = info['batch_size']
+            for n in self.file_lengths:
+                self.cum_file_lengths.append(self.cum_file_lengths[-1] + n)
+            self._storage_format = info['storage_format']
+
+    def _new(self, batch_size: int = None, storage_format: str = None):
+        if not batch_size:
+            batch_size = 10000
+        else:
+            assert batch_size > 0
+        if not storage_format:
+            storage_format = self.DEFAULT_STORAGE_FORMAT
+        else:
+            assert storage_format in self.STORAGE_FORMATS
+        self.batch_size = batch_size
+        self._storage_format = storage_format
+
+        os.makedirs(self.data_dir)
 
     @classmethod
     def convert_to_disk(self, x):

@@ -1,5 +1,6 @@
 import io
 import logging
+import warnings
 from time import perf_counter
 from typing import Union
 
@@ -111,14 +112,17 @@ async def a_rest_request(
                 args = {'data': payload}
             elif payload_type == 'json':
                 args = {'json': payload}
+            elif payload_type == 'orjson-stream':
+                args = {'data': orjson_dumps(payload)}
+            elif payload_type == 'orjson-z-stream':
+                args = {'data': orjson_z_dumps(payload)}
+            elif payload_type == 'pickle-stream':
+                args = {'data': pickle_dumps(payload)}
+            elif payload_type == 'pickle-z-stream':
+                args = {'data': pickle_z_dumps(payload)}
             else:
-                f = {
-                    'orjson-stream': orjson_dumps,
-                    'pickle-stream': pickle_dumps,
-                    'orjson-z-stream': orjson_z_dumps,
-                    'pickle-z-stream': pickle_z_dumps,
-                }[payload_type]
-                args = {'data': f(payload)}
+                raise ValueError(
+                    f"payload_type '{payload_type}'' is not supported")
         else:
             args = {}
     else:
@@ -128,22 +132,37 @@ async def a_rest_request(
     kwargs['headers'] = {'content-type': 'application/' + payload_type}
 
     response = await _a_request(func, url, **kwargs)
-    response.raise_for_status()
-    # Could raise `httpx.HTTPStatusError`.
 
     response_content_type = response.headers['content-type']
     if response_content_type.starswith('text/plain'):
         data = response.text
     elif response_content_type.starswith('application/json'):
         data = response.json()
+    elif response_content_type == 'application/orjson-stream':
+        data = orjson_loads(await response.aread())
+    elif response_content_type == 'application/orjson-z-stream':
+        data = orjson_z_loads(await response.aread())
+    elif response_content_type == 'application/pickle-stream':
+        data = pickle_loads(await response.aread())
+    elif response_content_type == 'application/pickle-z-stream':
+        data = pickle_z_loads(await response.aread())
+    elif response_content_type in ('image/jpeg', 'image/png', 'image/gif'):
+        data = response.content
     else:
-        f = {
-            'application/orjson-stream': orjson_loads,
-            'application/pickle-stream': pickle_loads,
-            'application/orjson-z-stream': orjson_z_loads,
-            'application/pickle-z-stream': pickle_z_loads,
-        }[response_content_type]
-        data = f(await response.read())
+        warnings.warn(
+            f"unknown content-type {response_content_type}; raw data is returned")
+        data = response.content
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        # `e` carries a message, and attributes `request`, `response`.
+        # User can get code via `e.response.status_code`.
+        e.response_data = data
+        e.status_code = response.status_code
+        e.is_client_error = httpx.codes.is_client_error(response.status_code)
+        e.is_server_error = httpx.codes.is_server_error(response.status_code)
+        raise e
 
     return data
 
@@ -180,14 +199,17 @@ def rest_request(
                 args = {'data': io.BytesIO(payload)}
             elif payload_type == 'json':
                 args = {'json': payload}
+            elif payload_type == 'orjson-stream':
+                args = {'data': io.BytesIO(orjson_dumps(payload))}
+            elif payload_type == 'orjson-z-stream':
+                args = {'data': io.BytesIO(orjson_z_dumps(payload))}
+            elif payload_type == 'pickle-stream':
+                args = {'data': io.BytesIO(pickle_dumps(payload))}
+            elif payload_type == 'pickle-z-stream':
+                args = {'data': io.BytesIO(pickle_z_dumps(payload))}
             else:
-                f = {
-                    'orjson-stream': orjson_dumps,
-                    'pickle-stream': pickle_dumps,
-                    'orjson-z-stream': orjson_z_dumps,
-                    'pickle-z-stream': pickle_z_dumps,
-                }[payload_type]
-                args = {'data': io.BytesIO(f(payload))}
+                raise ValueError(
+                    f"payload_type '{payload_type}' is not supported")
         else:
             args = {}
     else:
@@ -196,30 +218,37 @@ def rest_request(
     kwargs = {**args, **kwargs}
     kwargs['headers'] = {'content-type': 'application/' + payload_type}
 
-    time0 = perf_counter()
-    try:
-        response = func(url, **kwargs)
-    except (httpx.PoolTimeout, httpcore.PoolTimeout):
-        time1 = perf_counter()
-        timeout_duration = time1 - time0
-        logger.error('timed out after %d seconds', timeout_duration)
-        raise
-
-    response.raise_for_status()
-    # Could raise `httpx.HTTPStatusError`.
+    response = func(url, **kwargs)
 
     response_content_type = response.headers.get('content-type')
     if response_content_type.starswith('text/plain'):
         data = response.text
     elif response_content_type.starswith('application/json'):
         data = response.json()
+    elif response_content_type == 'application/orjson-stream':
+        data = orjson_loads(response.content)
+    elif response_content_type == 'application/orjson-z-stream':
+        data = orjson_z_loads(response.content)
+    elif response_content_type == 'application/pickle-stream':
+        data = pickle_loads(response.content)
+    elif response_content_type == 'application/pickle-z-stream':
+        data = pickle_z_loads(response.content)
+    elif response_content_type in ('image/jpeg', 'image/png', 'image/gif'):
+        data = response.content
     else:
-        f = {
-            'application/orjson-stream': orjson_loads,
-            'application/pickle-stream': pickle_loads,
-            'application/orjson-z-stream': orjson_z_loads,
-            'application/pickle-z-stream': pickle_z_loads,
-        }[response_content_type]
-        data = f(response.content)
+        warnings.warn(
+            f"unknown content-type {response_content_type}; raw data is returned")
+        data = response.content
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        # `e` carries a message, and attributes `request`, `response`.
+        # User can get code via `e.response.status_code`.
+        e.response_data = data
+        e.status_code = response.status_code
+        e.is_client_error = httpx.codes.is_client_error(response.status_code)
+        e.is_server_error = httpx.codes.is_server_error(response.status_code)
+        raise e
 
     return data

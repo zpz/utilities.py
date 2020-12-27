@@ -1,10 +1,10 @@
 import os
 import os.path
+import tempfile
 from shutil import rmtree
 
 import pytest
 from zpz.biglist import Biglist, ListView
-from zpz.path import make_temp_dir
 
 
 PATH = os.path.join(os.environ.get('TMPDIR', '/tmp'), 'test', 'biglist')
@@ -14,27 +14,27 @@ def test_numbers():
     if os.path.isdir(PATH):
         rmtree(PATH)
 
-    mylist = Biglist(PATH, batch_size=5)
+    with Biglist.new(PATH, batch_size=5, keep_files=False) as mylist:
+        for i in range(21):
+            mylist.append(i)
 
-    for i in range(21):
-        mylist.append(i)
+        mylist.extend([21, 22, 23, 24, 25])
+        mylist.extend([26, 27, 28])
+        mylist.flush()
 
-    mylist.extend([21, 22, 23, 24, 25])
-    mylist.extend([26, 27, 28])
-    mylist.flush()
+        data = list(range(len(mylist)))
+        n = 0
+        for x in mylist:
+            assert x == data[n]
+            n += 1
 
-    data = list(range(len(mylist)))
-    n = 0
-    for x in mylist:
-        assert x == data[n]
-        n += 1
-
-    assert list(mylist) == data
+        assert list(mylist) == data
 
 
 def test_existing_numbers():
-    mylist = Biglist(PATH)
-    data = list(range(len(mylist)))
+    rmtree(PATH, ignore_errors=True)
+    mylist = Biglist.new(PATH)
+    mylist.extend(range(29))
 
     mylist.append(29)
     mylist.append(30)
@@ -49,7 +49,7 @@ def test_existing_numbers():
 
 
 def _test_view():
-    bl = Biglist()
+    bl = Biglist.new()
     bl.extend(range(20))
     bl.flush()
     datalv = bl.view()
@@ -61,7 +61,7 @@ def _test_view():
     assert datalv[17] == data[17]
 
     lv = datalv[:9]
-    assert isinstance(lv, BiglistView)
+    assert isinstance(lv, ListView)
     assert list(lv) == data[:9]
     assert lv[-1] == data[8]
     assert lv[3] == data[3]
@@ -84,10 +84,10 @@ def _test_view():
 
 
 def test_move():
-    bl = Biglist(batch_size=4)
+    bl = Biglist.new(batch_size=4)
     bl.extend(range(17))
 
-    newpath = make_temp_dir()
+    newpath = tempfile.mkdtemp()
     rmtree(newpath)
     bl.move(newpath)
 
@@ -98,7 +98,7 @@ def test_move():
 
 
 def _test_fileview():
-    bl = Biglist(batch_size=4)
+    bl = Biglist.new(batch_size=4)
     bl.extend(range(22))
     bl.flush()
     assert len(bl.file_lengths) == 6
