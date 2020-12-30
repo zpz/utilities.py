@@ -10,6 +10,7 @@ setup(
     description='Python utilities',
     package_dir={"": "src"},
     packages=find_packages(where='src'),
+    package_data={'zpz': ['py.typed']},
     include_package_data=True,
     python_requires='>=3.7',
     url='https://github.com/zpz/utilities.py',

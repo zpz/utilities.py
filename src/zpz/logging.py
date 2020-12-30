@@ -63,12 +63,14 @@ def _make_config(
         with_process_name: bool = False,
         with_thread_name: bool = False,
         timezone: str = 'US/Pacific',
+        rich: bool = True,
         **kwargs) -> Dict:
     # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING,
                      logging.ERROR, logging.CRITICAL):
         level = getattr(logging, level.upper())
 
+    # TODO: looks like the following formatter is not used.
     if timezone.lower() == 'UTC':
         Formatter.converter = time.gmtime
     elif timezone.lower() == 'local':
@@ -83,18 +85,24 @@ def _make_config(
 
     datefmt = '%Y-%m-%d %H:%M:%S'
 
-    msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
-        '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
+    if rich:
+        from rich.logging import RichHandler
+        kwargs['handlers'] = [RichHandler()]
+        msg = ''
+    else:
+        msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
+            '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
+        msg += '  '
 
     if with_process_name:
         if with_thread_name:
-            fmt = f'{msg} [%(processName) %(threadName)s]    %(message)s'
+            fmt = f'{msg}[%(processName) %(threadName)s]  %(message)s'
         else:
-            fmt = f'{msg} [%(processName)s    %(message)s]'
+            fmt = f'{msg}[%(processName)s  %(message)s]'
     elif with_thread_name:
-        fmt = f'{msg} [%(threadName)s]    %(message)s'
+        fmt = f'{msg}[%(threadName)s]  %(message)s'
     else:
-        fmt = f'{msg}    %(message)s'
+        fmt = f'{msg}%(message)s'
 
     return dict(format=fmt, datefmt=datefmt, level=level, **kwargs)
 

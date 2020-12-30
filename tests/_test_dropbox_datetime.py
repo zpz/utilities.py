@@ -1,11 +1,9 @@
-import arrow
-import pytest
+import arrow  # type: ignore
 import shutil
 from pathlib import Path
 
-from zpz.datetime import (
-    DateRange, shift_day, shift_hour,
-    write_timestamp, TIMESTAMP_FILE, read_timestamp, has_timestamp)
+from zpz.datetime import DateRange, shift_day, shift_hour
+from zpz.dropbox._datetime import write_timestamp, TIMESTAMP_FILE, read_timestamp, has_timestamp
 
 
 def test_write_timestamp():

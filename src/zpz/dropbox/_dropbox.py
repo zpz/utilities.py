@@ -4,35 +4,15 @@ import os
 import os.path
 import pickle
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 from typing import List, Any
 
 from ..path import join_path
 from ._local import LocalFileStore
 from ._file_store import FileStore
+from ._datetime import make_timestamp, TIMESTAMP_FILE
 
 logger = logging.getLogger(__name__)
-
-
-TIMESTAMP_FILE = 'updated_at_utc.txt'
-
-
-def make_timestamp() -> str:
-    '''
-    This function creates a timestamp string with fixed format like
-
-        '2020-08-22T08:09:13.401346'
-
-    Strings created by this function can be compared to
-    determine time order. There is no need to parse the string
-    into `datetime` objects.
-
-    The returned string is often written as a timestamp file, like
-
-        open(file_name, 'w').write(make_timestamp())
-    '''
-    return datetime.utcnow().isoformat(timespec='microseconds')
 
 
 class Dropbox:

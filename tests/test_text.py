@@ -1,7 +1,7 @@
 import json
 
-import numpy as np
-import pandas as pd
+import numpy as np  # type: ignore
+import pandas as pd  # type: ignore
 
 from zpz.text import numpy_to_serializable, numpy_from_serializable
 

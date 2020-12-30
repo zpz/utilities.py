@@ -5,17 +5,20 @@ if [[ $(git branch --show-current) != master ]]; then
     # exit 1
 fi
 
+PYVER=3.8
+
 docker build \
-    --build-arg PYTHON_VERSION=3.8 \
+    --build-arg PYTHON_VERSION=${PYVER} \
     --target release-test \
     -t zpz-release-test:latest \
     . || exit 1
 
 docker run --rm zpz-release-test:latest \
-    py.test --log-cli-level warning \
-    --cov=/usr/local/lib/python3.8/site-packages/zpz \
-    --cov-fail-under 30 \
-    /zpz-dist/tests
+    py.test \
+        --mypy --log-cli-level warning \
+        --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \
+        --cov-fail-under 35 \
+        /zpz-dist/tests
 if [ $? -ne 0 ]; then
     docker rmi zpz-release-test:latest
     exit 1
@@ -28,7 +31,12 @@ echo
 echo "zpz version: ${version}"
 echo
 
-docker build --target release -t zppz/zpz:${version} .
+
+docker build \
+    --build-arg PYTHON_VERSION=${PYVER} \
+    --target release \
+    -t zppz/zpz-installer:${version} \
+    . || exit 1
 if [[ $? != 0 ]]; then
     docker rmi zpz-release-test:latest
     exit 1
@@ -37,4 +45,4 @@ docker rmi zpz-release-test:latest
 
 
 echo
-echo Successfully created release zppz/zpz:${version}
+echo Successfully created release zppz/zpz-installer:${version}

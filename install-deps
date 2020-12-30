@@ -1,0 +1,157 @@
+#!/bin/bash
+
+# exit on error
+set -e
+
+
+#==============================================
+# Packages that require nothing more than pip
+# to install.
+
+python -m pip install --no-cache-dir \
+    arrow \
+    'avro-python3==1.*' \
+    'boltons>=20' \
+    'orjson>=3' \
+    'pytz>=2019' \
+    rich \
+    'tenacity>=6' \
+    'toolz>=0.11' \
+    \
+    'httpx>=0.15.5' \
+    'python-multipart==0.0.5' \
+    'starlette>=0.13.8' \
+    'uvicorn>=0.12.1' \
+    \
+    'numpy>=1.19' \
+    'pandas>=1,<2' \
+    'scikit-learn>=0.23.2'
+
+
+#==============================================
+
+apt-get update
+
+apt-get install -y --no-install-recommends --no-upgrade \
+    gcc libc6-dev g++
+
+
+#==============================================
+# Packages that need gcc.
+
+python -m pip install --no-cache-dir \
+    'line-profiler>=3.0.2' \
+    'psutil>=5.7.3'
+
+
+#==============================================
+# ODBC for MySQL and Hive.
+
+apt-get install -y --no-install-recommends --no-upgrade \
+    unixodbc unixodbc-dev \
+    libsasl2-2 libsasl2-modules-gssapi-mit
+
+# These env vars should be set before running `odbcinst`.
+export ODBCSYSINI=/etc
+export ODBCINI=/etc/odbc.ini
+
+
+### hive ###
+
+# Refer to this link for Hortonworks Hive ODBC instructions:
+#   https://community.cloudera.com/t5/Community-Articles/Hive-ODBC-Setup-with-UnixODBC-and-Debug-Logging/ta-p/247160
+# title:
+#   Hive ODBC Setup with UnixODBC and Debug Logging
+
+# Download Hive ODBC driver, e.g. hive-odbc.deb
+#dpkg -i hive-odbc.deb
+#odbcinst -i -d -f hive_odbcinst.ini
+#odbcinst -i -s -f hive_odbc.ini
+#export HORTONWORKSHIVEINI=/usr/lib/hive/lib/native/Linux-amd64-64/hortonworks.hiveodbc.ini
+#cp hortonworks.hiveodbc.ini ${HORTONWORKSHIVEINI}
+
+
+### mysql ###
+
+# MySQL ODBC driver has several choices depending on desired treatment
+# of unicode. See
+#   https://dev.mysql.com/doc/connector-odbc/en/connector-odbc-installation.html
+
+# Download MySQL ODBC driver, e.g.
+#MYSQL_ODBC=mysql-connector-odbc-8.0.19-linux-ubuntu18.04-x86-64bit
+
+#apt-get install -y --no-install-recommends --no-upgrade \
+#    libmariadb3 libmariadb-dev-compat
+
+    # default-libmysqlclient-dev
+
+#mkdir -p /usr/lib/mysql-odbc/
+#tar -xf ${MYSQL_ODBC}.tar.gz
+#cd ${MYSQL_ODBC}
+#cp lib/libmyodbc8w.so lib/libmyodbc8a.so lib/libmyodbc8S.so /usr/lib/mysql-odbc/
+#./bin/myodbc-installer -d -a -n "MySQL ODBC 8.0 Unicode Driver" -t "DRIVER=/usr/lib/mysql-odbc/libmyodbc8w.so"
+#./bin/myodbc-installer -s -a -c1 -n "MySQLUnicode" -t "DRIVER=MySQL ODBC 8.0 Unicode Driver"
+#./bin/myodbc-installer -d -a -n "MySQL ODBC 8.0 ANSI Driver" -t "DRIVER=/usr/lib/mysql-odbc/libmyodbc8a.so"
+#./bin/myodbc-installer -s -a -c1 -n "MySQLANSI" -t "DRIVER=MySQL ODBC 8.0 ANSI Driver"
+
+#apt-get install -y --no-install-recommends --no-upgrade \
+#    'mysqlclient>=2.0.1'
+
+## python odbc ###
+
+python -m pip install --no-cache-dir \
+    'aioodbc>=0.3.3' \
+    'pyodbc>=4.0.30'
+
+
+#==============================================
+
+# Remove build dependencies.
+
+apt-get purge -y --auto-remove \
+    gcc libc6-dev g++ unixodbc-dev
+apt-get autoremove -y
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+
+
+# NOTES
+
+
+# ENV DEBIAN_FRONTEND=noninteractive
+
+#         'readme-renderer[md]==26.0' \
+# RUN pip-install \
+#         'twine==3.2.0' \
+#         'wheel==0.35.1'
+
+# Use `pympler` to check total memory size of a Python object.
+
+# Use `yapf` to format Python code in-place:
+#   yapf -ir -vv --no-local-style .
+#
+# Also check out `black`.
+
+# `pip install line_profiler` fails on Python 3.7.
+# See https://github.com/rkern/line_profiler/issues/132
+# Hopefully the fix will be integrated soon.
+#
+# Check out alternatives `pprofile` and `py-spy`.
+#
+# For other profilers, refer to
+#  https://devopedia.org/profiling-python-code
+
+
+# Installing `line_profiler` needs gcc.
+
+# Use `snakeviz` to view profiling stats.
+# `snakeviz` is not installed in this Docker image as it's better
+# installed on the hosting machine 'natively'.
+
+# Other useful packages:
+#    flake8
+#    pyflakes
+#    radon
+
+# To generate some graphs such as class hierarchy diagrams with `Sphinx`,
+# one needs to install the system package `graphviz` and Python package `graphviz`.
