@@ -13,17 +13,18 @@ docker build \
     -t zpz-release-test:latest \
     . || exit 1
 
+echo
+
 docker run --rm zpz-release-test:latest \
     py.test \
         --mypy --log-cli-level warning \
         --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \
         --cov-fail-under 35 \
-        /zpz-dist/tests
+        /tmp/zpz-dist/tests
 if [ $? -ne 0 ]; then
-    docker rmi zpz-release-test:latest
     exit 1
 fi
-
+echo
 
 version=$(docker run --rm zpz-release-test:latest pip show zpz | grep Version)
 version=${version#* }

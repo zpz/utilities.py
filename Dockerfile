@@ -51,5 +51,4 @@ RUN cd /tmp/zpz-dist && ./INSTALL
 COPY tests /tmp/zpz-dist/tests
 COPY requirements-test.txt /tmp/zpz-dist/
 RUN cd /tmp/zpz-dist \
-        python -m pip --no-cache-dir -r requirements-test.txt
-
+        && python -m pip install --no-cache-dir -r requirements-test.txt
