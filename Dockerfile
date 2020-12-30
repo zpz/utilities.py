@@ -1,59 +1,55 @@
 ARG PYTHON_VERSION=3.8
 
-FROM python:${PYTHON_VERSION}-slim
+#################################################
+FROM python:${PYTHON_VERSION}-slim AS build
 USER root
 
-# ENV DEBIAN_FRONTEND=noninteractive
+COPY install-deps /opt/zpz/
+RUN cd /opt/zpz && ./install-deps
 
-#         'readme-renderer[md]==26.0' \
-# RUN pip-install \
-#         'twine==3.2.0' \
-#         'wheel==0.35.1'
-
-# Use `pympler` to check total memory size of a Python object.
-
-# Use `yapf` to format Python code in-place:
-#   yapf -ir -vv --no-local-style .
-#
-# Also check out `black`.
-
-# `pip install line_profiler` fails on Python 3.7.
-# See https://github.com/rkern/line_profiler/issues/132
-# Hopefully the fix will be integrated soon.
-#
-# Check out alternatives `pprofile` and `py-spy`.
-#
-# For other profilers, refer to
-#  https://devopedia.org/profiling-python-code
+COPY ./src /opt/zpz/src
+COPY setup.py setup.cfg README.md /opt/zpz/
 
 
-# Installing `line_profiler` needs gcc.
+#################################################
+FROM build AS test
 
-# Use `snakeviz` to view profiling stats.
-# `snakeviz` is not installed in this Docker image as it's better
-# installed on the hosting machine 'natively'.
+COPY requirements-test.txt /opt/zpz
+RUN cd /opt/zpz \
+    && python -m pip install --no-cache-dir -r requirements-test.txt \
+    && python -m pip install --no-cache-dir -q .
 
-# Other useful packages:
-#    flake8
-#    pyflakes
-#    radon
+COPY tests /opt/zpz/tests
 
-# To generate some graphs such as class hierarchy diagrams with `Sphinx`,
-# one needs to install the system package `graphviz` and Python package `graphviz`.
 
-RUN apt-get update \
-        && apt-get install -y --no-install-recommends --no-upgrade \
-                gcc libc6-dev g++ \
-                unixodbc-dev \
-                default-libmysqlclient-dev \
-        && apt-get autoremove -y \
-        && apt-get clean \
-        && rm -rf /var/lib/apt/lists/*
+#################################################
+FROM build AS release-prep
 
-COPY ./ /zpz-src
-RUN cd /zpz-src \
-        && python -m pip install \
-                -r requirements.txt \
-                -r requirements-test.txt
+RUN mkdir /zpz-dist \
+        && cd /opt/zpz \
+        && cp install-deps /zpz-dist/ \
+        && python setup.py sdist -d /zpz-dist \
+        && python setup.py bdist_wheel -d /zpz-dist
 
-RUN cd /zpz-src && python -m pip install .
+
+#################################################
+FROM busybox:1 AS release
+
+COPY --from=release-prep /zpz-dist /zpz-dist
+RUN echo '#!/bin/sh' > /zpz-dist/INSTALL \
+        && echo './install-deps && python -m pip install --no-cache-dir --no-index --find-links ./ zpz' >> /zpz-dist/INSTALL \
+        && chmod +x /zpz-dist/INSTALL
+
+
+#################################################
+FROM python:${PYTHON_VERSION}-slim AS release-test
+
+COPY --from=release /zpz-dist /tmp/zpz-dist
+RUN cd /tmp/zpz-dist && ./INSTALL
+
+# prep for tests
+COPY tests /tmp/zpz-dist/tests
+COPY requirements-test.txt /tmp/zpz-dist/
+RUN cd /tmp/zpz-dist \
+        python -m pip --no-cache-dir -r requirements-test.txt
+

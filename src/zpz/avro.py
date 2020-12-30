@@ -1,3 +1,7 @@
+import numpy
+import avro.io
+import avro.datafile
+import avro.schema
 import io
 import json
 from typing import Union
@@ -5,10 +9,6 @@ import zlib
 import warnings
 
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='avro')
-import avro.schema
-import avro.datafile
-import avro.io
-import numpy
 
 
 class BinaryEncoder(avro.io.BinaryEncoder):

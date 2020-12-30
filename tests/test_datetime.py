@@ -1,4 +1,4 @@
-import arrow
+import arrow  # type: ignore
 import pytest
 import shutil
 from pathlib import Path

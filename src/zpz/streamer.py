@@ -1,10 +1,11 @@
 import asyncio
 import logging
 import typing
-from collections.abc import AsyncIterable, AsyncIterator, Iterable
+from collections.abc import AsyncIterable, Iterable
 from typing import Callable, Awaitable, Any, TypeVar
 
-from .a_sync import create_loud_task, IO_WORKERS
+from .mp import MAX_THREADS
+
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +52,11 @@ async def buffer(in_stream: AsyncIterable, buffer_size: int = None):
             await out_stream.put(x)
         await out_stream.put(NO_MORE_DATA)
 
-    t = create_loud_task(buff(in_stream, out_stream))
+    t = asyncio.create_task(buff(in_stream, out_stream))
 
     while True:
+        if t.done() and t.exception() is not None:
+            raise t.exception()
         x = await out_stream.get()
         if x is NO_MORE_DATA:
             break
@@ -118,7 +121,7 @@ async def transform(
     Pass in 0 or 1 to enforce single worker.
     '''
     if workers is None:
-        workers = IO_WORKERS
+        workers = MAX_THREADS
 
     if workers < 2:
         async for x in in_stream:
@@ -140,10 +143,21 @@ async def transform(
                     finished = True
                     await out_stream.put(NO_MORE_DATA)
                     break
+                except Exception as e:
+                    fut = asyncio.Future()
+                    await out_stream.put(fut)
+                    fut.set_exception(e)
+                    return
+
                 fut = asyncio.Future()
                 await out_stream.put(fut)
-            y = await func(x, **kwargs)
-            fut.set_result(y)
+
+            try:
+                y = await func(x, **kwargs)
+                fut.set_result(y)
+            except Exception as e:
+                fut.set_exception(e)
+                return
 
     if out_buffer_size is None:
         out_buffer_size = workers * 8
@@ -151,7 +165,7 @@ async def transform(
     lock = asyncio.Lock()
 
     t_workers = [
-        create_loud_task(_process(
+        asyncio.create_task(_process(
             in_stream,
             lock,
             out_stream,
@@ -167,7 +181,7 @@ async def transform(
             break
         yield await fut
 
-    for t in t_workers:
+    for t in asyncio.as_completed(t_workers):
         await t
 
 
@@ -180,7 +194,7 @@ async def unordered_transform(
     **func_args,
 ):
     if workers is None:
-        workers = IO_WORKERS
+        workers = MAX_THREADS
     assert workers > 1
 
     if out_buffer_size is None:
@@ -190,9 +204,14 @@ async def unordered_transform(
     lock = asyncio.Lock()
     n_active_workers = workers
 
+    class TaskError:
+        def __init__(self, e):
+            self.e = e
+
     async def _process(in_stream, lock, out_stream, func, **kwargs):
         nonlocal finished
         while not finished:
+            error = None
             async with lock:
                 if finished:
                     break
@@ -201,8 +220,18 @@ async def unordered_transform(
                 except StopAsyncIteration:
                     finished = True
                     break
-            y = await func(x, **kwargs)
-            await out_stream.put(y)
+                except Exception as e:
+                    error = e
+
+            if error is not None:
+                await out_stream.put(TaskError(error))
+                return
+            try:
+                y = await func(x, **kwargs)
+                await out_stream.put(y)
+            except Exception as e:
+                await out_stream.put(TaskError(e))
+                return
 
         nonlocal n_active_workers
         n_active_workers -= 1
@@ -210,7 +239,7 @@ async def unordered_transform(
             await out_stream.put(NO_MORE_DATA)
 
     t_workers = [
-        create_loud_task(_process(
+        asyncio.create_task(_process(
             in_stream, lock, out_stream,
             func, **func_args,
         ))
@@ -221,9 +250,11 @@ async def unordered_transform(
         y = await out_stream.get()
         if y is NO_MORE_DATA:
             break
+        if isinstance(y, TaskError):
+            raise y.e
         yield y
 
-    for t in t_workers:
+    for t in asyncio.as_completed(t_workers):
         await t
 
 

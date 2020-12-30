@@ -1,5 +1,5 @@
 import json
-import numpy as np
+import numpy as np  # type: ignore
 
 from zpz.avro import dump_bytes, load_bytes, make_schema
 

@@ -131,19 +131,12 @@ def get_temp_file(dir: str = None, ext: str = '') -> str:
                 return relname
 
 
-def make_temp_dir() -> str:
-    '''
-    Create a temporary directory, guaranteed to be existent and empty.
-
-    Return the absolute path.
-
-    The caller should take care to delete the directory after use,
-    e.g. using `shutil.rmtree`.
-    '''
-    return tempfile.mkdtemp()
-
-
 def prepare_path(path, *path_elements):
+    '''
+    The arguments specify a file name.
+    This function makes sure the full path above the file
+    exists, and returns the file path.
+    '''
     ff = os.path.join(path, *path_elements)
     dirname = os.path.dirname(os.path.abspath(ff))
     if not os.path.isdir(dirname):

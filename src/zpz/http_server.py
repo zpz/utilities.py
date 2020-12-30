@@ -1,19 +1,23 @@
 import logging
 from io import BytesIO
-from typing import Union, List
+from typing import Union, List, Any
 
+import orjson
 import uvicorn
 from starlette.applications import Starlette
-from starlette.response import (
+from starlette.responses import (
+    Response,
     JSONResponse, PlainTextResponse, HTMLResponse,
     StreamingResponse,
 )
 from starlette.routing import Route
 
-from .json import orjson_loads, orjson_z_loads
-from .json import orjson_dumps, orjson_z_dumps
-from .pickle import pickle_loads, pickle_z_loads
-from .pickle import pickle_dumps, pickle_z_dumps
+from .serde import (
+    orjson_loads, orjson_z_loads,
+    orjson_dumps, orjson_z_dumps,
+    pickle_loads, pickle_z_loads,
+    pickle_dumps, pickle_z_dumps,
+)
 from .logging import log_level_to_str
 
 
@@ -25,7 +29,7 @@ REQUEST_LOADERS = {
     'application/pickle-stream': pickle_loads,
     'application/pickle-z-stream': pickle_z_loads,
 }
-REQUEST_DUMPERS = {
+RESPONSE_DUMPERS = {
     'application/orjson-stream': orjson_dumps,
     'application/orjson-z-stream': orjson_z_dumps,
     'application/pickle-stream': pickle_dumps,
@@ -38,40 +42,55 @@ async def get_request_data(request):
     if request_content_type == 'application/json':
         data = await request.json()
     else:
-        cmd = REQUEST_LOADERS[request_content_type]
+        try:
+            cmd = REQUEST_LOADERS[request_content_type]
+        except KeyError as e:
+            raise ValueError(
+                f'unknown content-type "{request_content_type}"') from e
         data = cmd(await request.body())
 
     return request_content_type, data
 
 
-async def get_form_data(request):
-    # This needs the `python-multipart` package installed.
-    form = await request.form()
-    return form
+# async def get_form_data(request):
+#     # This needs the `python-multipart` package installed.
+#     form = await request.form()
+#     return form
 
 
-def make_response(data, content_type, status=200):
-    if content_type == 'application/json':
-        return make_json_response(data, status)
+class ORJSONResponse(Response):
+    media_type = "application/orjson-stream"
 
-    cmd = REQUEST_DUMPERS[content_type]
-    return StreamingResponse(
-        BytesIO(cmd(data)),
-        media_type=content_type,
-        status_code=status,
-    )
+    def render(self, content: Any) -> bytes:
+        return orjson_dumps(content)
 
 
-def make_text_response(text, status=200):
-    return PlainTextResponse(text, status_code=status)
+# def make_response(data, content_type, status=200):
+#     if content_type == 'application/json':
+#         return JSONResponse(data, status)
+
+#     cmd = RESPONSE_DUMPERS[content_type]
+#     return StreamingResponse(
+#         BytesIO(cmd(data)),
+#         media_type=content_type,
+#         status_code=status,
+#     )
 
 
-def make_json_response(data, status=200):
-    return JSONResponse(data, status_code=status)
+# def make_text_response(text, status=200):
+#     return PlainTextResponse(text, status_code=status)
 
 
-def make_html_response(text):
-    return HTMLResponse(text)
+# def make_json_response(data, status=200):
+#     return JSONResponse(data, status_code=status)
+
+
+# def make_orjson_response(data, status=200):
+#     return ORJSONResponse(data, status_code=status)
+
+
+# def make_html_response(text):
+#     return HTMLResponse(text)
 
 
 def make_exc_response(exc, data=None):
@@ -79,45 +98,17 @@ def make_exc_response(exc, data=None):
         status = exc.status_code
     except:
         status = 500
-    return make_json_response(
+    return JSONResponse(
         {
             'status': 'Internal Server Error',
             'error': exc.__class__.__name__ + ': ' + str(exc),
             'data': str(data),
         },
-        status=status,
+        status_code=status,
     )
 
 
-class Application(Starlette):
-    def __init__(self, debug: bool = False, **kwargs):
-        super().__init__(
-            debug=debug,
-            on_startup=[self.on_startup],
-            on_shutdown=[self.on_shutdown],
-            **kwargs,
-        )
-
-    def add_route(self, path, handler, methods: Union[str, List[str]]):
-        if isinstance(methods, str):
-            methods = [methods]
-        super().add_route(
-            path=path,
-            route=handler,
-            methods=methods,
-        )
-
-    async def on_startup(self):
-        # Subclass can add things they want to run at startup.
-        logger.info('Starting %s (@ %d)',
-                    self.__class__.__name__, id(self))
-
-    async def on_shutdown(self):
-        logger.info('Shutting down %s (@ %d)',
-                    self.__class__.__name__, id(self))
-
-
-def run_app(app: Union[Application, str],
+def run_app(app: Union[Starlette, str],
             *,
             port,
             backlog=512,
@@ -128,8 +119,8 @@ def run_app(app: Union[Application, str],
             workers: int = 1,
             **kwargs):
     '''
-    `app`: an `Application` instance or the import string
-    for an `Application` instance, like 'mymodule:app'.
+    `app`: an `Starlette` instance or the import string
+    for an `Starlette` instance, like 'mymodule:app'.
 
     `loop`: usually, leave it at 'none', especially if you need
         to use the event loop before calling this function.
