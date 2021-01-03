@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-if [[ $(git branch --show-current) != master ]]; then
-    >&2 echo Please switch to branch '"master"' to make release
+branch=$(git branch --show-current)
+if [[ ${branch} != master ]] && [[ ${branch} != main ]]; then
+    >&2 echo Please switch to branch '"master"' or '"main"' to make release
     # exit 1
 fi
 
@@ -17,7 +18,7 @@ echo
 
 docker run --rm zpz-release-test:latest \
     py.test \
-        --mypy --log-cli-level warning \
+        --flake8 --mypy --log-cli-level warning \
         --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \
         --cov-fail-under 35 \
         /tmp/zpz-dist/tests

@@ -1,7 +1,4 @@
 import arrow  # type: ignore
-import pytest
-import shutil
-from pathlib import Path
 
 from zpz.datetime import (
     DateRange, shift_day, shift_hour)

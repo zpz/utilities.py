@@ -23,23 +23,23 @@ def test_join_path():
 
         assert join_path(base_dir, '/x/y/z.txt') == '/x/y/z.txt'
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, '../../../../../x')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, '../../../../../x')
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, '.././x')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, '.././x')
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, './../x')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, './../x')
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, '../../x/y/../z.txt')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, '../../x/y/../z.txt')
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, '../../x/y/./z.txt')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, '../../x/y/./z.txt')
 
-        with pytest.raises(ValueError) as e:
-            z = join_path(base_dir, '../../x/y//z.txt')
+        with pytest.raises(ValueError):
+            _ = join_path(base_dir, '../../x/y//z.txt')
 
 
 def test_relative_path():

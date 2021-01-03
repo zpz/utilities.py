@@ -36,7 +36,7 @@ async def _test_maybeawait():
 
     with pytest.warns(RuntimeError):
         def ff():
-            zz = foo(7, 8)
+            _ = foo(7, 8)
             return 3
             # Will raise the "coroutine ... was never awaited"
             # warning
@@ -44,7 +44,7 @@ async def _test_maybeawait():
         assert ff() == 3
 
     async def gg():
-        zz = MaybeAwait(ff, 7, 8)
+        _ = MaybeAwait(ff, 7, 8)
         return 3
         # No warning
 

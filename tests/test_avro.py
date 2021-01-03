@@ -1,7 +1,6 @@
-import json
 import numpy as np  # type: ignore
 
-from zpz.avro import dump_bytes, load_bytes, make_schema
+from zpz.avro import dump_bytes, load_bytes
 
 
 def test_avro():
@@ -45,13 +44,14 @@ def test_avro():
     z = load_bytes(b)
 
     for item in data['scalars']:
-        assert type(data['scalars'][item]) is type(z['scalars'][item])
+        assert isinstance(data['scalars'][item], type(z['scalars'][item]))
         assert data['scalars'][item] == z['scalars'][item]
 
     for item in data['np_scalars']:
-        assert type(data['np_scalars'][item]) is type(z['np_scalars'][item])
+        assert isinstance(data['np_scalars'][item],
+                          type(z['np_scalars'][item]))
         assert data['np_scalars'][item] == z['np_scalars'][item]
 
     for item in data['np_arrays']:
-        assert type(z['np_arrays'][item]) is type(data['np_arrays'][item])
+        assert isinstance(z['np_arrays'][item], type(data['np_arrays'][item]))
         assert all(data['np_arrays'][item] == z['np_arrays'][item])

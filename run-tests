@@ -13,13 +13,14 @@ if [ "$#" -gt 0 ]; then
     docker run \
         zpz-test:latest \
         py.test \
-            -s --mypy --log-cli-level info \
+            -s --flake8 --mypy --log-cli-level info \
             /opt/zpz/tests/$@
 else
     # Run all tests.
     docker run \
         zpz-test:latest \
         py.test \
+            --flake8 \
             --mypy \
             --log-cli-level warning \
             --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \

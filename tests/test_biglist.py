@@ -3,7 +3,6 @@ import os.path
 import tempfile
 from shutil import rmtree
 
-import pytest
 from zpz.biglist import Biglist, ListView
 
 

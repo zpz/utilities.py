@@ -27,8 +27,9 @@ def test_exception():
 
 class MyDataServer(ServerProcess):
     def __init__(self, inc=1):
-        print(
-            f'initiating {self.__class__.__name__} instance in {current_process().name}')
+        print('initiating {} instance in {}'.format(
+            self.__class__.__name__, current_process().name))
+
         self._inc = inc
 
     def inc(self, x):
