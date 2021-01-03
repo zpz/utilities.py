@@ -1,9 +1,13 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+set -e
+
+TINY=zppz/tiny:21.01.02
 
 branch=$(git branch --show-current)
 if [[ ${branch} != master ]] && [[ ${branch} != main ]]; then
     >&2 echo Please switch to branch '"master"' or '"main"' to make a release
-    # exit 1
+    exit 1
 fi
 
 PYVER=3.8
@@ -12,7 +16,7 @@ docker build \
     --build-arg PYTHON_VERSION=${PYVER} \
     --target release-test \
     -t zpz-release-test:latest \
-    . || exit 1
+    .
 
 echo
 
@@ -22,29 +26,18 @@ docker run --rm zpz-release-test:latest \
         --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \
         --cov-fail-under 35 \
         /tmp/zpz-dist/tests
-if [ $? -ne 0 ]; then
-    exit 1
-fi
+
 echo
 
-version=$(docker run --rm zpz-release-test:latest pip show zpz | grep Version)
-version=${version#* }
-echo
-echo "zpz version: ${version}"
-echo
-
+version=$(docker run --rm ${TINY} make-date-version)
 
 docker build \
     --build-arg PYTHON_VERSION=${PYVER} \
     --target release \
-    -t zppz/zpz-installer:${version} \
-    . || exit 1
-if [[ $? != 0 ]]; then
-    docker rmi zpz-release-test:latest
-    exit 1
-fi
+    -t zpz-installer:${version} \
+    .
 docker rmi zpz-release-test:latest
 
 
 echo
-echo Successfully created release zppz/zpz-installer:${version}
+echo Successfully created release zpz-installer:${version}

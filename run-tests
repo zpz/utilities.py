@@ -1,4 +1,6 @@
-#!/usr/bin/env sh
+#!/bin/bash
+
+set -e
 
 PYVER=3.8
 
@@ -6,14 +8,17 @@ docker build \
     --build-arg PYTHON_VERSION=${PYVER} \
     --target test \
     -t zpz-test:latest \
-    . || exit 1
+    .
 
 if [ "$#" -gt 0 ]; then
     # Run one specific test file.
     docker run \
         zpz-test:latest \
         py.test \
-            -s --flake8 --mypy --log-cli-level info \
+            -s \
+            --flake8 \
+            --mypy \
+            --log-cli-level info \
             /opt/zpz/tests/$@
 else
     # Run all tests.
