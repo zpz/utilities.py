@@ -2,7 +2,7 @@
 
 branch=$(git branch --show-current)
 if [[ ${branch} != master ]] && [[ ${branch} != main ]]; then
-    >&2 echo Please switch to branch '"master"' or '"main"' to make release
+    >&2 echo Please switch to branch '"master"' or '"main"' to make a release
     # exit 1
 fi
 
