@@ -5,6 +5,8 @@ import os
 import os.path
 import pickle
 import zlib
+from pathlib import Path
+from typing import Union
 
 import joblib
 import orjson
@@ -13,14 +15,18 @@ from .path import prepare_path
 from ._functools import nogc
 
 
-def _dump(func, mode, x, path, *paths) -> None:
+def _dump(func, mode, x, path: Union[str, Path], *paths) -> None:
     ff = prepare_path(path, *paths)
     with open(ff, mode) as f:
         f.write(func(x))
 
 
-def _load(func, mode, path, *paths):
-    with open(os.path.join(path, *paths), mode) as f:
+def _load(func, mode, path: Union[str, Path], *paths):
+    if isinstance(path, str):
+        ff = os.path.join(path, *paths)
+    else:
+        ff = Path(path, *paths)
+    with open(ff, mode) as f:
         return func(f.read())
 
 

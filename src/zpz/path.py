@@ -1,8 +1,9 @@
 import inspect
 import os.path
-from pathlib import PurePath
+from pathlib import Path
 import tempfile
 import uuid
+from typing import Union
 
 
 def join_path(base_dir: str, rel_path: str) -> str:
@@ -98,7 +99,7 @@ def relative_path(path: str) -> str:
     '''
     caller = inspect.getframeinfo(inspect.stack()[1][0]).filename
     assert caller.endswith('.py')
-    p = PurePath(caller).parent
+    p = Path(caller).parent
     return join_path(str(p), path)
 
 
@@ -131,14 +132,21 @@ def get_temp_file(dir: str = None, ext: str = '') -> str:
                 return relname
 
 
-def prepare_path(path, *path_elements):
+def prepare_path(path: Union[str, Path], *path_elements):
     '''
     The arguments specify a file name.
     This function makes sure the full path above the file
     exists, and returns the file path.
     '''
-    ff = os.path.join(path, *path_elements)
-    dirname = os.path.dirname(os.path.abspath(ff))
-    if not os.path.isdir(dirname):
-        os.makedirs(dirname)
+    if isinstance(path, str):
+        ff = os.path.abspath(os.path.join(path, *path_elements))
+        dirname = os.path.dirname(ff)
+        if not os.path.isdir(dirname):
+            os.makedirs(dirname)
+    else:
+        ff = Path(path, *path_elements).resolve()
+        dirpath = ff.parent
+        if not dirpath.is_dir():
+            dirpath.mkdir()
+
     return ff
