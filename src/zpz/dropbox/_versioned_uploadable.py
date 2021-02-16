@@ -9,7 +9,7 @@ from typing import List, Type
 from ..functools import classproperty
 
 from ._dropbox import Dropbox
-from ._dropbox import write_timestamp, read_timestamp, has_timestamp, TIMESTAMP_FILE
+from ._dropbox import has_timestamp
 from ._file_store import FileStore
 
 logger = logging.getLogger(__name__)

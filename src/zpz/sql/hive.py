@@ -251,7 +251,7 @@ class Hive(SQLClient):
             'UseNativeQuery': 1,
             'EnableAsyncExec': 1,
             'DefaultStringColumnLength': 100000,
-            **{f'SSP_{k}': f'{{{{v}}}}' for k, v in self._configuration.items()}
+            **{f'SSP_{k}': f'{{{v}}}' for k, v in self._configuration.items()}
         }
         return ';'.join(f'{k} = {v}' for k, v in conn_args.items())
 

@@ -44,7 +44,7 @@ class Connection:
             logger.exception(msg)
             raise
 
-    def read(self, sql: str, *args, **kwargs) -> 'self':
+    def read(self, sql: str, *args, **kwargs) -> 'Connection':
         self._execute(sql, *args, **kwargs)
         return self
 
@@ -164,7 +164,7 @@ class AsyncConnection:
             logger.exception(msg)
             raise
 
-    async def read(self, sql: str, *args, **kwargs) -> 'self':
+    async def read(self, sql: str, *args, **kwargs) -> 'AsyncConnection':
         await self._execute(sql, *args, **kwargs)
         return self
 
@@ -228,7 +228,7 @@ class SQLClient(metaclass=ABCMeta):
         raise NotImplementedError
 
     @contextmanager
-    def get_connection(self) -> ContextManager['self.CONNECTION_CLASS']:
+    def get_connection(self) -> ContextManager[Connection]:
         # Typical usage:
         #
         #   obj = Sql(...)
@@ -251,7 +251,7 @@ class SQLClient(metaclass=ABCMeta):
         raise NotImplementedError
 
     @asynccontextmanager
-    async def a_get_connection(self) -> AsyncContextManager['self.ASYNCCONNECTION_CLASS']:
+    async def a_get_connection(self) -> AsyncContextManager[AsyncConnection]:
         conn = await self.a_connect()
         cursor = await conn.cursor()
         try:

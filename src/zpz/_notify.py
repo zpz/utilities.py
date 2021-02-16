@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 import functools
 import inspect
-import json
 import logging
 import os
 from pathlib import Path
@@ -47,7 +46,7 @@ def should_send_alert(status: str, ff: Path, silent_seconds: Union[float, int],
     try:
         old_status, old_dt, old_info = open(ff).read().split('\n')
         old_date, old_time, *_ = old_dt.split()
-    except Exception as e:
+    except Exception:
         return True
 
     if old_status != status:
@@ -205,7 +204,7 @@ def notify(exception_classes: Exception = None,
                     notify_ok(status, msg)
                 log_notify(notifile, status, status_msg)
                 return z
-            except exception_classes as e:
+            except exception_classes:
                 status = 'ERROR'
                 msg = '{}\n\n{}\n{}'.format(decloc, format_exc(), args_msg)
                 if should_send_alert(status, notifile, silent_seconds,

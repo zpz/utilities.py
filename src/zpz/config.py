@@ -43,7 +43,6 @@ For complex values, use JSON strings. Note, quotation marks in JSON strings shou
 """
 
 import configparser
-import os
 
 
 def read_ini_config_string(
@@ -68,4 +67,3 @@ def read_ini_config_string(
 def read_ini_config(file_name, *args, **kwargs):
     return read_ini_config_string(
         open(file_name).read(), *args, **kwargs)
-

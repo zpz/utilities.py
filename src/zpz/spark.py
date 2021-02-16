@@ -3,7 +3,7 @@ import pkgutil
 import random
 import textwrap
 import time
-from typing import Union, Optional, Iterable, Iterator
+from typing import Iterable, Iterator
 
 import pandas as pd
 import requests

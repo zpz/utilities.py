@@ -10,7 +10,7 @@ import multiprocessing as mp
 import queue
 import time
 from abc import ABCMeta, abstractmethod
-from typing import List, Type, Union, Tuple
+from typing import List, Type, Tuple
 
 import psutil
 

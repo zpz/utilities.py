@@ -15,20 +15,45 @@ if [ "$#" -gt 0 ]; then
     docker run \
         zpz-test:latest \
         py.test \
-            -s \
-            --flake8 \
-            --mypy \
+            -s -v \
             --log-cli-level info \
             /opt/zpz/tests/$@
 else
     # Run all tests.
-    docker run \
-        zpz-test:latest \
+    src=/usr/local/lib/python${PYVER}/site-packages/zpz
+
+    echo
+    echo --- running bandit ---
+    echo
+    docker run --rm zpz-test:latest \
+        bandit -r -lll ${src} || exit 1
+
+    echo
+    echo --- running pyflakes ---
+    echo
+    docker run --rm zpz-test:latest \
+        python -m pyflakes ${src} || exit 1
+    echo
+    docker run --rm zpz-test:latest \
+        python -m pyflakes /opt/zpz/tests || exit 1
+
+    # echo
+    # echo --- running mypy ---
+    # echo
+    # docker run --rm zpz-test:latest \
+    #     bash -c "\
+    #         ln -s ${src} /tmp/src \
+    #         && python -m mypy /tmp/src \
+    #         && rm /tmp/src" || exit 1
+
+    echo
+    echo --- running tests ---
+    echo
+    docker run --rm zpz-test:latest \
         py.test \
-            --flake8 \
-            --mypy \
             --log-cli-level warning \
-            --cov=/usr/local/lib/python${PYVER}/site-packages/zpz \
+            --cov=${src} \
+            --cov-report term-missing \
             --cov-fail-under 35 \
             /opt/zpz/tests
 fi

@@ -1,7 +1,6 @@
 import logging
 from pathlib import Path
 import time
-from typing import List
 
 import boto3
 
@@ -214,6 +213,7 @@ class Bucket:
 
 def reduce_boto_logging():
     import boto3.s3.transfer
+    assert boto3.s3.transfer  # silence pyflakes
     for name in logging.Logger.manager.loggerDict.keys():
         if name.startswith('boto') or name.startswith('urllib3') or name.startswith('s3transfer'):
             logging.getLogger(name).setLevel(logging.ERROR)

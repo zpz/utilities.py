@@ -8,7 +8,7 @@ from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from copy import deepcopy
-from typing import Union, List, Callable, Type, Iterable
+from typing import Union, List, Iterable
 
 from .serde import (
     json_load, json_dump, orjson_load, orjson_dump,
@@ -559,7 +559,7 @@ class Biglist(Sequence, AbstractContextManager):
     def file_count(self):
         return len(self.file_lengths)
 
-    def move(self, path: str, overwrite: bool = False, keep_files: bool = True) -> 'self':
+    def move(self, path: str, overwrite: bool = False, keep_files: bool = True) -> 'Biglist':
         '''
         Note that after this operation, existing files of this object are moved
         to the new path, but if there are data in buffer that is not persisted yet,

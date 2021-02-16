@@ -1,4 +1,3 @@
-import os.path
 from datetime import datetime
 from pathlib import Path
 from typing import Union
@@ -30,7 +29,7 @@ def write_timestamp(local_dir: Union[Path, str]) -> None:
         local_dir.mkdir(parents=True)
     else:
         if not local_dir.is_dir():
-            raise ValueError(f"`local_dir` should be a directory")
+            raise ValueError("`local_dir` should be a directory")
     (local_dir / TIMESTAMP_FILE).write_text(make_timestamp())
 
 

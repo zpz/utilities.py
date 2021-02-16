@@ -2,7 +2,6 @@ import logging
 from traceback import format_exc
 import os
 import random
-from typing import List, Tuple, Union
 
 from retrying import retry
 import pyathena
@@ -11,8 +10,6 @@ from .hive import HiveTableMixin
 from .sql import SQLClient
 from ..s3 import reduce_boto_logging
 
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -44,23 +41,24 @@ class Athena(SQLClient):
             cursor_arraysize=1000,  # 1000 is Athena's upper limit
         )
 
-    @retry(retry_on_exception=is_athena_error, 
-            wait_exponential_multiplier=30000, # 30 seconds
-            wait_exponential_max=120000,  # 2 minutes
-            stop_max_attempt_number=7)
+    @retry(retry_on_exception=is_athena_error,
+           wait_exponential_multiplier=30000,  # 30 seconds
+           wait_exponential_max=120000,  # 2 minutes
+           stop_max_attempt_number=7)
     def read(self, *args, **kwargs):
         return super().read(*args, **kwargs)
 
-    @retry(retry_on_exception=is_athena_error, 
-            wait_exponential_multiplier=30000, # 30 seconds
-            wait_exponential_max=120000,  # 2 minutes
-            stop_max_attempt_number=7)
+    @retry(retry_on_exception=is_athena_error,
+           wait_exponential_multiplier=30000,  # 30 seconds
+           wait_exponential_max=120000,  # 2 minutes
+           stop_max_attempt_number=7)
     def write(self, *args, **kwargs):
         return super().write(*args, **kwargs)
 
 
 def reduce_athena_logging():
     import pyathena.common
+    assert pyathena.common  # silence pyflakes
     for name in logging.Logger.manager.loggerDict.keys():
         if name.startswith('pyathena'):
             logging.getLogger(name).setLevel(logging.ERROR)
@@ -73,7 +71,7 @@ class AthenaTable(HiveTableMixin):
         assert location.startswith('s3://')
         super().__init__(location=location, **kwargs)
 
-    def insert_overwrite_partition(self, engine: Athena, sql: str, *partition_values, purge_data: bool=True):
+    def insert_overwrite_partition(self, engine: Athena, sql: str, *partition_values, purge_data: bool = True):
         '''
         `purge_data`: if `True`, purge existing data in the partion pointed to by `partition_values`.
             If `False`, do not purge; instead, assume the operation will write into sub-directories that
@@ -85,7 +83,8 @@ class AthenaTable(HiveTableMixin):
         tmp_tb = f'{TMP_DB}.{tmp_tb}'
 
         if len(partition_values) < len(self.partitions):
-            parts = ', '.join([f"'{k}'" for k,v in self.partitions[len(partition_values): ]])
+            parts = ', '.join(
+                [f"'{k}'" for k, v in self.partitions[len(partition_values):]])
             parts = f'partitioned_by = ARRAY[{parts}],'
             # Be sure to verify that the last columns in `sql` match these partition fields.
         else:
