@@ -1,5 +1,6 @@
 import itertools
 import logging
+from pprint import pprint
 from typing import List, Tuple
 
 import aioodbc
@@ -113,7 +114,7 @@ class HiveConnection(Connection):
         return [v[0] for v in z]
 
     def get_tables(self, db_name: str) -> List[str]:
-        z = self.read(f'SHOW TABLES IN {db_name}').fetch_all()
+        z = self.read(f'SHOW TABLES IN {db_name}').fetchall()
         return [v[0] for v in z]
 
     def show_create_table(self, db_name: str, tb_name: str) -> None:
@@ -126,6 +127,11 @@ class HiveConnection(Connection):
         sql = f'DESCRIBE FORMATTED {db_name}.{tb_name}'
         z = self.read(sql).fetchall_pandas()
         print(z)
+
+    def show_table_properties(self, db_name: str, tb_name: str) -> None:
+        self.read(f'SHOW TBLPROPERTIES {db_name}.{tb_name}')
+        z = self.fetchall()
+        pprint(z)
 
     def drop_table(self, db_name: str, tb_name: str) -> None:
         self.write(f'DROP TABLE IF EXISTS {db_name}.{tb_name}')
@@ -156,6 +162,23 @@ class HiveAsyncConnection(AsyncConnection):
         await self.read(f'SHOW TABLES IN {db_name}')
         z = await self.fetchall()
         return [v[0] for v in z]
+
+    async def show_create_table(self, db_name: str, tb_name: str) -> None:
+        sql = f'SHOW CREATE TABLE {db_name}.{tb_name}'
+        await self.read(sql)
+        z = await self.fetchall()
+        zz = '\n'.join(v[0] for v in z)
+        pprint(zz)
+
+    async def describe_table(self, db_name: str, tb_name: str) -> None:
+        await self.read(f'DESCRIBE EXTENDED {db_name}.{tb_name}')
+        z = await self.fetchall()
+        pprint(z)
+
+    async def show_table_properties(self, db_name: str, tb_name: str) -> None:
+        await self.read(f'SHOW TBLPROPERTIES {db_name}.{tb_name}')
+        z = await self.fetchall()
+        pprint(z)
 
     async def drop_table(self, db_name: str, tb_name: str) -> None:
         await self.write(f'DROP TABLE IF EXISTS {db_name}.{tb_name}')
