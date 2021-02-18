@@ -207,7 +207,7 @@ class Biglist(Sequence, AbstractContextManager):
         # the `__init__` of a subclass.
 
         if not path:
-            path = tempfile.mkdtemp()
+            path = tempfile.mkdtemp(dir=os.environ.get('TMPDIR', '/tmp'))
             if keep_files is None:
                 keep_files = False
         else:
