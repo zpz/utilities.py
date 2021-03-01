@@ -96,6 +96,11 @@ def relative_path(path: str) -> str:
         relative_path('./details/sum.py')
 
     returns '/home/work/src/repo1/scripts/details/sum.py'.
+
+    Alternatively, at the place where one would have used this function,
+    they could use something along the lines of
+
+        str((Path(__file__).parent / path).resolve())
     '''
     caller = inspect.getframeinfo(inspect.stack()[1][0]).filename
     assert caller.endswith('.py')
