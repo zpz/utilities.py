@@ -58,7 +58,7 @@ class Dumper:
         assert 0 < max_workers < 10
         self._max_workers = max_workers
         self._executor: ThreadPoolExecutor = None  # type: ignore
-        self._sem: threading.Semaphore = None  # type: ingore
+        self._sem: threading.Semaphore = None  # type: ignore
         # Do not instantiate these now.
         # They would cause trouble when `Biglist`
         # file-views are sent to other processes.

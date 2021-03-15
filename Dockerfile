@@ -7,23 +7,27 @@ USER root
 COPY install-deps /opt/zpz/
 RUN cd /opt/zpz && ./install-deps
 
-COPY ./src /opt/zpz/src
-COPY setup.py setup.cfg README.md /opt/zpz/
-
 
 #################################################
 FROM build AS test
 
-COPY requirements-test.txt /opt/zpz
+COPY requirements-test.txt /opt/zpz/
 RUN cd /opt/zpz \
-    && python -m pip install --no-cache-dir -r requirements-test.txt \
-    && python -m pip install --no-cache-dir -q .
+    && python -m pip install --no-cache-dir -r requirements-test.txt
+
+COPY ./src /opt/zpz/src
+COPY setup.py setup.cfg README.md /opt/zpz/
+
+RUN cd /opt/zpz && python -m pip install --no-cache-dir -q .
 
 COPY tests /opt/zpz/tests
 
 
 #################################################
 FROM build AS release-prep
+
+COPY ./src /opt/zpz/src
+COPY setup.py setup.cfg README.md /opt/zpz/
 
 RUN mkdir /zpz-dist \
         && cd /opt/zpz \

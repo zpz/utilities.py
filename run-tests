@@ -3,20 +3,22 @@
 set -e
 
 PYVER=3.8
+TESTIMG=zpz-test:latest
 
 docker build \
     --build-arg PYTHON_VERSION=${PYVER} \
     --target test \
-    -t zpz-test:latest \
+    -t ${TESTIMG} \
     .
 
 if [ "$#" -gt 0 ]; then
     # Run one specific test file.
     docker run \
-        zpz-test:latest \
+        ${TESTIMG} \
         py.test \
             -s -v \
-            --log-cli-level info \
+            --showlocals \
+            --log-cli-level debug \
             /opt/zpz/tests/$@
 else
     # Run all tests.
@@ -25,34 +27,47 @@ else
     echo
     echo --- running bandit ---
     echo
-    docker run --rm zpz-test:latest \
+    docker run --rm ${TESTIMG} \
         bandit -r -lll ${src} || exit 1
+    docker run --rm ${TESTIMG} \
+        bandit -r -lll /opt/zpz/tests || exit 1
 
     echo
     echo --- running pyflakes ---
     echo
-    docker run --rm zpz-test:latest \
+    docker run --rm ${TESTIMG} \
         python -m pyflakes ${src} || exit 1
     echo
-    docker run --rm zpz-test:latest \
+    docker run --rm ${TESTIMG} \
         python -m pyflakes /opt/zpz/tests || exit 1
 
-    # echo
-    # echo --- running mypy ---
-    # echo
-    # docker run --rm zpz-test:latest \
-    #     bash -c "\
-    #         ln -s ${src} /tmp/src \
-    #         && python -m mypy /tmp/src \
-    #         && rm /tmp/src" || exit 1
+    echo
+    echo --- running mypy ---
+    echo
+    docker run --rm ${TESTIMG} \
+        bash -c "\
+            ln -s ${src} /tmp/src \
+            && python -m mypy /tmp/src \
+            && rm /tmp/src"
+    # mypy issues will not halt the build
+
+    echo
+    echo --- running pylint ---
+    echo
+    docker run --rm ${TESTIMG} \
+        bash -c "\
+            ln -s ${src} /tmp/src \
+            && python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 /tmp/src \
+            && rm /tmp/src"
+    # pylint issues will not halt the build.
 
     echo
     echo --- running tests ---
     echo
-    docker run --rm zpz-test:latest \
+    docker run --rm ${TESTIMG} \
         py.test \
-            --log-cli-level warning \
-            --cov=${src} \
+            --log-cli-level info \
+            --cov=zpz \
             --cov-report term-missing \
             --cov-fail-under 35 \
             /opt/zpz/tests
