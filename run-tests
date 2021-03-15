@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 PYVER=3.8
 TESTIMG=zpz-test:latest
 
