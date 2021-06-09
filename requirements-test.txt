@@ -1,5 +1,8 @@
+bandit
+mypy
+pyflakes
+pylint
 pytest
 pytest-asyncio
 pytest-cov
-pytest-flake8
-pytest-mypy
+radon

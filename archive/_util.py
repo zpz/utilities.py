@@ -51,7 +51,7 @@ def download_dir(
                 container.cd_back()
                 return 0
 
-    n = container.get_dir(
+    _ = container.get_dir(
         './', local_abs_dir, clear_local_dir=True, progress_printer=progress_printer)
     container.cd_back()
     return 0

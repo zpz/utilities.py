@@ -8,38 +8,26 @@ from zpz.path import get_temp_file
 
 def test_join_path():
     for base_dir in ('/a/b/c/d', '/a/b/c/d/'):
-        assert join_path(base_dir, '') == base_dir
-        assert join_path(base_dir, '.') == base_dir
-        assert join_path(base_dir, './') == base_dir
-        assert join_path(base_dir, '..') == '/a/b/c/'
-        assert join_path(base_dir, '../') == '/a/b/c/'
+        assert join_path(base_dir, '') == base_dir.rstrip('/')
+        assert join_path(base_dir, '.') == base_dir.rstrip('/')
+        assert join_path(base_dir, './') == base_dir.rstrip('/')
+        assert join_path(base_dir, '..') == '/a/b/c'
+        assert join_path(base_dir, '../') == '/a/b/c'
         assert join_path(base_dir, 'xy.txt') == '/a/b/c/d/xy.txt'
         assert join_path(base_dir, './xy.txt') == '/a/b/c/d/xy.txt'
         assert join_path(base_dir, './x/y/z') == '/a/b/c/d/x/y/z'
-        assert join_path(base_dir, './x/y/z/') == '/a/b/c/d/x/y/z/'
+        assert join_path(base_dir, './x/y/z/') == '/a/b/c/d/x/y/z'
         assert join_path(base_dir, '../../x/y.txt') == '/a/b/x/y.txt'
         assert join_path(base_dir, '../../../../x/y/z.txt') == '/x/y/z.txt'
         assert join_path(base_dir, 'x/.y') == '/a/b/c/d/x/.y'
 
         assert join_path(base_dir, '/x/y/z.txt') == '/x/y/z.txt'
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, '../../../../../x')
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, '.././x')
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, './../x')
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, '../../x/y/../z.txt')
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, '../../x/y/./z.txt')
-
-        with pytest.raises(ValueError):
-            _ = join_path(base_dir, '../../x/y//z.txt')
+        assert join_path(base_dir, '../../../../../x') == '/x'
+        assert join_path(base_dir, '.././x') == '/a/b/c/x'
+        assert join_path(base_dir, './../x') == '/a/b/c/x'
+        assert join_path(base_dir, '../../x/y/../z.txt')
+        assert join_path(base_dir, '../../x/y/./z.txt') == '/a/b/x/y/z.txt'
+        assert join_path(base_dir, '../../x/y//z.txt') == '/a/b/x/y/z.txt'
 
 
 def test_relative_path():
@@ -65,13 +53,11 @@ def test_temp_file():
     os.remove(z)
     assert not os.path.exists(z)
 
-    z = get_temp_file('/tmp')
+    z = get_temp_file(dir='/tmp')
     print(z)
-    assert '/' not in z
     assert not os.path.exists(z)
     with open(z, 'w') as f:
         f.write('abcd')
-    assert os.path.isfile(z)
     assert os.path.isfile(z)
     assert open(z).read() == 'abcd'
     os.remove(z)

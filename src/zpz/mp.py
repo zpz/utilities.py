@@ -16,6 +16,8 @@ MAX_THREADS = min(32, multiprocessing.cpu_count() + 4)
 
 
 def full_class_name(cls):
+    if not isinstance(cls, type):
+        cls = cls.__class__
     mod = cls.__module__
     if mod is None or mod == 'builtins':
         return cls.__name__
@@ -52,6 +54,9 @@ class MpError(Exception):
         return self.qualname + ': ' + self.message
 
 
+_excepthook_ = sys.excepthook
+
+
 def _my_excepthook(type_, value, tb):
     if type_ is MpError:
         # With this hook, the printout upon
@@ -64,7 +69,7 @@ def _my_excepthook(type_, value, tb):
         # instead of what's relevant with respect to where `raise SubProcessError(...)` is called.
         print(value.trace_back, file=sys.stderr)
     else:
-        sys.__excepthook__(type, value, tb)
+        _excepthook_(type, value, tb)
 
 
 sys.excepthook = _my_excepthook

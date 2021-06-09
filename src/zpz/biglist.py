@@ -1,14 +1,15 @@
 import os
 import os.path
+import queue
 import shutil
 import tempfile
 import time
 import threading
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future
 from contextlib import AbstractContextManager
 from copy import deepcopy
-from typing import Union, List, Callable, Type, Iterable
+from typing import Union, List, Iterable, Dict, Optional, Tuple
 
 from .serde import (
     json_load, json_dump, orjson_load, orjson_dump,
@@ -53,16 +54,21 @@ def _dump_file(x, path):
 
 
 class Dumper:
-    def __init__(self, max_workers: int = 5):
+    def __init__(self, max_workers: int = 3):
+        assert 0 < max_workers < 10
         self._max_workers = max_workers
-        self._executor = None
-        self._sem = None
+        self._executor: ThreadPoolExecutor = None  # type: ignore
+        self._sem: threading.Semaphore = None  # type: ignore
         # Do not instantiate these now.
         # They would cause trouble when `Biglist`
         # file-views are sent to other processes.
 
-        self._files = {}
-        self._tasks = {}
+        self._files: Dict[int, str] = {}
+        self._tasks: Dict[int, Future] = {}
+
+    @property
+    def busy(self) -> bool:
+        return bool(self._files or self._tasks)
 
     def _callback(self, t):
         self._sem.release()
@@ -82,6 +88,8 @@ class Dumper:
         self._tasks[tid] = task
         self._files[tid] = path
         task.add_done_callback(self._callback)
+        # If task is already finished when this callback is being added,
+        # then it is called immediately.
 
     def has_file(self, path: str):
         # Check whether the file `path` is in queue to be
@@ -89,8 +97,8 @@ class Dumper:
         return path in self._files.values()
 
     def wait(self):
-        if self._executor is not None:
-            self._executor.shutdown(wait=True)
+        for t in list(self._tasks.values()):
+            _ = t.result()
         assert not self._files
         assert not self._tasks
 
@@ -99,94 +107,21 @@ class Dumper:
 
 
 class Loader:
-    def __init__(self, max_workers: int = 5):
-        self._max_workers = max_workers
-        self._executor = None
-        self._sem = None
+    def __init__(self, max_workers: int = 3):
+        assert 0 < max_workers < 10
+        self._tasks: queue.Queue = queue.Queue(max_workers + 1)
+        self._executor: ThreadPoolExecutor = ThreadPoolExecutor(max_workers)
 
-        self._tasks = {}
-        self._data = []
+    def add_file(self, file_id, file_loader):
+        # This does not use file-name directly because we need to
+        # use `Biglist._load_file` as the file-loading function,
+        # which in turn could be customized.
+        task = self._executor.submit(file_loader, file_id)
+        self._tasks.put(task)
 
-    def _callback(self, t):
-        self._sem.release()
-        del self._tasks[id(t)]
-        if t.cancelled():
-            return
-        if t.exception():
-            raise t.exception()
-        self._data.append((t._path_, t.result()))
-
-    def load_file(self, path: str, *paths):
-        if self._executor is None:
-            self._executor = ThreadPoolExecutor(self._max_workers)
-            self._sem = threading.Semaphore(self._max_workers)
-
-        nothing = object()
-        result = nothing
-        for i, (p, v) in enumerate(self._data):
-            if p == path:
-                self._data.pop(i)
-                self._data.insert(0, (p, v))
-                result = v
-                break
-
-        if result is nothing:
-            result_task = None
-            for t in self._tasks.values():
-                # TODO:
-                # corner case: as we do this loop,
-                # the task of interest has finished and
-                # disappeared from `self._tasks`.
-                if t._path_ == path:
-                    result_task = t
-                    break
-
-            if result_task is None:
-                self._sem.acquire()
-                result_task = self._executor.submit(_load_file, path)
-                result_task._path_ = path
-                self._tasks[id(result_task)] = result_task
-                result_task.add_done_callback(self._callback)
-
-        for p in paths:
-            found = False
-            for v in self._data:
-                if v[0] == p:
-                    found = True
-                    break
-            if found:
-                continue
-            for t in self._tasks.values():
-                if t._path_ == p:
-                    found = True
-                    break
-            if found:
-                continue
-
-            self._sem.acquire()
-            task = self._executor.submit(_load_file, p)
-            task._path_ = p
-            self._tasks[id(task)] = task
-            task.add_done_callback(self._callback)
-
-        if result is nothing:
-            _ = result_task.result()
-            for i, (p, v) in enumerate(self._data):
-                if p == path:
-                    self._data.pop(i)
-                    self._data.insert(0, (p, v))
-                    result = v
-                    break
-
-        if len(self._data) > self._max_workers:
-            self._data = self._data[: self._max_workers]
-
-        return result
-
-    def cancel(self):
-        for t in self._tasks.values():
-            t.cancel()
-        self._data = []
+    def get_data(self):
+        t = self._tasks.get()
+        return t.result()
 
 
 class Biglist(Sequence, AbstractContextManager):
@@ -218,75 +153,6 @@ class Biglist(Sequence, AbstractContextManager):
     DEFAULT_STORAGE_FORMAT = 'pickle'
 
     @classmethod
-    def new(cls, path: str = None, keep_files: bool = None, **kwargs):
-        if not path:
-            path = tempfile.mkdtemp()
-            if keep_files is None:
-                keep_files = False
-        else:
-            path = os.path.abspath(path)
-            if keep_files is None:
-                keep_files = True
-        if os.path.exists(path):
-            if os.path.isdir(path):
-                if os.listdir(path):
-                    raise Exception(f'directory "{path}" already exists')
-            else:
-                raise Exception(f'directory "{path}" not available')
-        obj = cls(path)
-        obj._keep_files = keep_files
-        obj._new(**kwargs)
-        return obj
-
-    def __init__(self, path: str):
-        path = os.path.abspath(path)
-
-        self.path = path
-        self._read_buffer = None
-        self._read_buffer_file_idx = None
-        # `self._read_buffer` contains the content of the file
-        # indicated by `self._read_buffer_file_idx`.
-
-        self.file_lengths = []
-        self.cum_file_lengths = [0]
-        self._append_buffer = []
-        self._storage_format = None
-
-        self.batch_size = None
-
-        self._keep_files = True
-
-        self._file_dumper = Dumper()
-        self._file_loader = Loader()
-
-        if os.path.isdir(self.path) and os.listdir(self.path):
-            if os.path.isfile(self.info_file):
-                info = json_load(self.info_file)
-            else:
-                raise Exception(
-                    f"directory '{self.path}' is not empty but is not a valid {self.__class__.__name__} folder")
-
-            self.file_lengths = info['file_lengths']
-            self.batch_size = info['batch_size']
-            for n in self.file_lengths:
-                self.cum_file_lengths.append(self.cum_file_lengths[-1] + n)
-            self._storage_format = info['storage_format']
-
-    def _new(self, batch_size: int = None, storage_format: str = None):
-        if not batch_size:
-            batch_size = 10000
-        else:
-            assert batch_size > 0
-        if not storage_format:
-            storage_format = self.DEFAULT_STORAGE_FORMAT
-        else:
-            assert storage_format in self.STORAGE_FORMATS
-        self.batch_size = batch_size
-        self._storage_format = storage_format
-
-        os.makedirs(self.data_dir)
-
-    @classmethod
     def convert_to_disk(self, x):
         # Transforms an incoming element (i.e. arguments to `append`).
         # Convention is that this is a `to_dict` type of function
@@ -304,12 +170,121 @@ class Biglist(Sequence, AbstractContextManager):
     def convert_from_disk(self, x):
         return x
 
+    @classmethod
+    def new(cls, path: str = None, **kwargs):
+        # A Biglist object constrution is in either of the two modes
+        # below:
+        #    a) create a new Biglist to store new data.
+        #    b) create a Biglist object pointing to storage of
+        #       existing data, which was created by a previous call to Biglist.new.
+        #
+        # Some settings are applicable only in mode (a), b/c in
+        # mode (b) they can't be changed and, if needed, should only
+        # use the vlaue already set in mode (a).
+        # Such settings should happen in this classmethod `new`
+        # and should not be parameters to the object initiator function `__init__`.
+        #
+        # These settings typically should be taken care of after creating
+        # the object with `__init__`. In doing this it's ok to access private atrributes
+        # of the object.
+        #
+        # `__init__` should be defined in such a way that it works for
+        # both a barebone object that is created in this `new`, and a
+        # fleshed out object that already has data.
+        #
+        # Some settings may be applicale to an existing Biglist object,
+        # i.e. they control ways to use the object, and are not an intrinsic
+        # property of the object. Hence they can be set to diff values while
+        # using an existing Biglist object. Such settings should be
+        # parameters t `__init__` and not to `new`. These parameters
+        # may be used when calling `new`, in which case they will be passed
+        # on to `__init__`.
+
+        batch_size: Optional[int] = kwargs.pop('batch_size', None)
+        storage_format: Optional[str] = kwargs.pop('storage_format', None)
+        keep_files: Optional[bool] = kwargs.pop('keep_files', None)
+        # If `kwargs` contains anything else, they must be accepted by
+        # the `__init__` of a subclass.
+
+        if not path:
+            path = tempfile.mkdtemp(dir=os.environ.get('TMPDIR', '/tmp'))
+            if keep_files is None:
+                keep_files = False
+        else:
+            path = os.path.abspath(path)
+            if keep_files is None:
+                keep_files = True
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                if os.listdir(path):
+                    raise Exception(f'directory "{path}" already exists')
+            else:
+                raise Exception(f'directory "{path}" not available')
+
+        obj = cls(path, **kwargs)  # type: ignore
+
+        obj._keep_files = keep_files
+
+        if not batch_size:
+            batch_size = 10000
+        else:
+            assert batch_size > 0
+        if not storage_format:
+            storage_format = cls.DEFAULT_STORAGE_FORMAT
+        else:
+            assert storage_format in cls.STORAGE_FORMATS
+
+        obj.batch_size = batch_size
+        obj._storage_format = storage_format
+
+        os.makedirs(obj.data_dir)
+        # Create the storage directory; empty now.
+
+        return obj
+
+    def __init__(self, path: str):
+        path = os.path.abspath(path)
+
+        self.path = path
+
+        self._read_buffer: Optional[list] = None
+        self._read_buffer_file_idx: Optional[int] = None
+        self._read_buffer_item_range: Tuple = (100000000, 0)
+        # `self._read_buffer` contains the content of the file
+        # indicated by `self._read_buffer_file_idx`.
+
+        self._len = 0
+        self.batch_size: int = None  # type: ignore
+        self.file_lengths: List[int] = []
+        self.cum_file_lengths = [0]
+        self._append_buffer: List = []
+        self._storage_format: str = None  # type: ignore
+
+        self._keep_files = True
+
+        self._file_dumper = Dumper()
+
+        if os.path.isdir(self.path) and os.listdir(self.path):
+            if os.path.isfile(self.info_file):
+                # TODO: a little redundant with `os.listdir`.
+                info = json_load(self.info_file)
+            else:
+                raise Exception(
+                    f"directory '{self.path}' is not empty but is not a valid {self.__class__.__name__} folder")
+
+            self.file_lengths = info['file_lengths']
+            self.batch_size = info['batch_size']
+            self._len = sum(self.file_lengths)
+            for n in self.file_lengths:
+                self.cum_file_lengths.append(self.cum_file_lengths[-1] + n)
+            self._storage_format = info['storage_format']
+
     @property
-    def info_file(self) -> str:
+    def info_file(self):
         return os.path.join(self.path, 'info.json')
 
     @property
-    def data_dir(self) -> str:
+    def data_dir(self):
         return os.path.join(self.path, 'store')
 
     def data_file(self, file_idx: int) -> str:
@@ -319,10 +294,7 @@ class Biglist(Sequence, AbstractContextManager):
         )
 
     def __len__(self) -> int:
-        n = self.cum_file_lengths[-1]
-        if self._append_buffer:
-            return n + len(self._append_buffer)
-        return n
+        return self._len
 
     def __bool__(self) -> bool:
         return len(self) > 0
@@ -340,9 +312,10 @@ class Biglist(Sequence, AbstractContextManager):
         self.cum_file_lengths = [0]
         self._read_buffer = None
         self._read_buffer_file_idx = None
+        self._read_buffer_item_range = (100000000, 0)
         self._append_buffer = []
+        self._len = 0
         self._file_dumper.cancel()
-        self._file_loader.cancel()
 
     def destroy(self) -> None:
         '''
@@ -353,10 +326,8 @@ class Biglist(Sequence, AbstractContextManager):
             shutil.rmtree(self.path)
 
     def __del__(self) -> None:
-        self._file_loader.cancel()
         if self._keep_files:
             self.flush()
-            self._file_dumper.wait()
         else:
             self._file_dumper.cancel()
             self.destroy()
@@ -389,6 +360,7 @@ class Biglist(Sequence, AbstractContextManager):
             # except for the very last file.
             if self.file_lengths:
                 if self.file_lengths[-1] < self.batch_size:
+                    assert not self._file_dumper.busy
                     self._append_buffer = self._load_file(self.file_count - 1)
                     # Note:
                     # do not delete the last file.
@@ -401,6 +373,7 @@ class Biglist(Sequence, AbstractContextManager):
                     self.cum_file_lengths.pop()
 
         self._append_buffer.append(x)
+        self._len += 1
         if len(self._append_buffer) >= self.batch_size:
             self.flush()
 
@@ -408,19 +381,12 @@ class Biglist(Sequence, AbstractContextManager):
         for v in x:
             self.append(v)
 
-    def _load_file(self, idx: int, read_ahead=0) -> List:
+    def _load_file(self, idx: int) -> List:
         path = self.data_file(idx)
         while self._file_dumper.has_file(path):
-            time.sleep(0.07)
-        paths = [path]
-        if read_ahead:
-            for k in range(read_ahead):
-                idx += 1
-                if idx < self.file_count:
-                    paths.append(self.data_file(idx))
-                else:
-                    break
-        return self._file_loader.load_file(*paths)
+            time.sleep(0.02)
+        loader = LOADERS[_get_file_extension(path)]
+        return loader(path)
 
     def _get_file_idx_for_item(self, idx: int) -> int:
         if idx >= self.cum_file_lengths[-1]:
@@ -431,6 +397,7 @@ class Biglist(Sequence, AbstractContextManager):
             for k in range(len(self.cum_file_lengths)):
                 if idx < self.cum_file_lengths[k]:
                     return k - 1
+            raise Exception('should never reach here')
         elif idx < self.cum_file_lengths[self._read_buffer_file_idx]:
             for k in range(self._read_buffer_file_idx - 1, -1, -1):
                 if idx >= self.cum_file_lengths[k]:
@@ -439,10 +406,11 @@ class Biglist(Sequence, AbstractContextManager):
             for k in range(self._read_buffer_file_idx + 2, len(self.cum_file_lengths)):
                 if idx < self.cum_file_lengths[k]:
                     return k - 1
+            raise Exception('should never reach here')
         else:
             return self._read_buffer_file_idx
 
-    def flush(self) -> None:
+    def _flush(self) -> None:
         '''
         Persist the content of the in-memory buffer to a disk file,
         reset the buffer, and update relevant book-keeping variables.
@@ -470,6 +438,12 @@ class Biglist(Sequence, AbstractContextManager):
             self._append_buffer,
             self.data_file(len(self.file_lengths))
         )
+        # This call will return quickly if the dumper has queue
+        # capacity for the file. The file meta data below
+        # will be updated as if the saving has completed, although
+        # it hasn't (it si only queued). This allows the waiting-to-be-saved
+        # data to be accessed property.
+
         self.file_lengths.append(buffer_len)
         self.cum_file_lengths.append(self.cum_file_lengths[-1] + buffer_len)
         json_dump(
@@ -486,65 +460,98 @@ class Biglist(Sequence, AbstractContextManager):
             # buffer. Now that the append buffer has been dumped,
             # the next read op will need to re-determine how to
             # populate the read buffer.
-            self._read_buffer = None
-            self._read_buffer_file_idx = None
+            self._read_buffer = None  # type: ignore
+            self._read_buffer_file_idx = None  # type: ignore
 
-    def __getitem__(self, idx: int):
+    def flush(self):
+        self._flush()
+        if self._file_dumper.busy:
+            self._file_dumper.wait()
+
+    def __getitem__(self, idx: int):  # type: ignore
         '''
         Element access by single index; negative index works as expected.
+
+        This is called in these cases:
+
+            - Access a single item of a Biglist object.
+            - Access a single item of a Biglist.view (incl. file_view)
+            - Iterate a Biglist.file_view
+            - Access a single item of a slice on a Biglist.view (incl. file_view)
+            - Iterate a slice on a Biglist.view (incl. file_view)
         '''
         if not isinstance(idx, int):
             raise TypeError(
                 f'{self.__class__.__name__} indices must be integers, not {type(idx).__name__}')
 
         idx = range(len(self))[idx]
-        file_idx = self._get_file_idx_for_item(idx)
+        n1 = self._read_buffer_item_range[0]
+        n2 = self._read_buffer_item_range[1]
 
-        if file_idx >= len(self.file_lengths):
-            elem = self._append_buffer[idx - self.cum_file_lengths[-1]]
+        if n1 <= idx < n2:
+            elem = self._read_buffer[idx - n1]  # type: ignore
         else:
-            if file_idx != self._read_buffer_file_idx:
+            file_idx = self._get_file_idx_for_item(idx)
+
+            if file_idx >= len(self.file_lengths):
+                elem = self._append_buffer[idx - self.cum_file_lengths[-1]]
+            else:
+                assert file_idx != self._read_buffer_file_idx
                 self._read_buffer = self._load_file(file_idx)
                 self._read_buffer_file_idx = file_idx
 
-            n1 = self.cum_file_lengths[file_idx]
-            n2 = self.cum_file_lengths[file_idx + 1]
-            assert n1 <= idx < n2
-            elem = self._read_buffer[idx - n1]
+                n1 = self.cum_file_lengths[file_idx]
+                n2 = self.cum_file_lengths[file_idx + 1]
+                assert n1 <= idx < n2
+                elem = self._read_buffer[idx - n1]
 
         return self.convert_from_disk(elem)
 
     def __iter__(self):
         '''
         Iterate over single elements.
-        '''
-        for file_idx in range(len(self.file_lengths)):
-            if file_idx != self._read_buffer_file_idx:
-                self._read_buffer = self._load_file(file_idx, read_ahead=2)
-                self._read_buffer_file_idx = file_idx
 
-            yield from (self.convert_from_disk(v) for v in self._read_buffer)
+        This is called in these cases:
+
+            - Iterate a Biglist object.
+            - Iterate a Biglist.view, not incl. file-view, and not involving
+              slicing, that is, iterate a view of the whole Biglist.
+
+        This does not call `__getitem__`.
+        '''
+        if self.file_lengths:
+            if self._file_dumper.busy:
+                self._file_dumper.wait()
+
+            file_loader = Loader(2)
+            file_loader.add_file(0, self._load_file)
+
+            nfiles = len(self.file_lengths)
+            for ifile in range(nfiles):
+                if ifile < nfiles - 1:
+                    file_loader.add_file(ifile + 1, self._load_file)
+                data = file_loader.get_data()
+                yield from (self.convert_from_disk(v) for v in data)
+
         if self._append_buffer:
             yield from (self.convert_from_disk(v) for v in self._append_buffer)
 
     def view(self) -> 'ListView':
-        assert not self._append_buffer
+        # During the use of this view, the underlying Biglist should not change.
+        # Multiple views may be used to view diff parts
+        # of the Biglist; they open and read files independent of
+        # other views.
+        self.flush()
         return ListView(self.__class__(self.path))
 
     def file_view(self, file_idx) -> 'ListView':
+        self.flush()
         assert 0 <= file_idx < self.file_count
         return ListView(
             self.__class__(self.path),
             range(self.cum_file_lengths[file_idx],
                   self.cum_file_lengths[file_idx+1]),
         )
-
-    def file_views(self) -> List['ListView']:
-        assert not self._append_buffer
-        return [
-            self.file_view(idx)
-            for idx in range(self.file_count)
-        ]
 
     @property
     def file_ranges(self) -> List:
@@ -559,7 +566,15 @@ class Biglist(Sequence, AbstractContextManager):
     def file_count(self):
         return len(self.file_lengths)
 
-    def move(self, path: str, overwrite: bool = False, keep_files: bool = True) -> 'self':
+    def file_views(self) -> List['ListView']:
+        # This is intended to facilitate parallel processing,
+        # e.g. send views to diff files to diff `multiprocessing.Process`es.
+        return [
+            self.file_view(idx)
+            for idx in range(self.file_count)
+        ]
+
+    def move(self, path: str, *, overwrite: bool = False, keep_files: bool = True) -> 'Biglist':
         '''
         Note that after this operation, existing files of this object are moved
         to the new path, but if there are data in buffer that is not persisted yet,
@@ -578,6 +593,7 @@ class Biglist(Sequence, AbstractContextManager):
                     f"destination directory `{path}` already exists")
             else:
                 shutil.rmtree(path)
+        self._file_dumper.wait()
         shutil.move(self.path, path)
         self.path = path
         self._keep_files = keep_files
@@ -600,18 +616,23 @@ class Biglist(Sequence, AbstractContextManager):
                 else:
                     shutil.rmtree(path)
 
-            newlist = self.__class__(
-                path=path, batch_size=self.batch_size,
-                keep_files=keep_files, storage_format=self._storage_format)
-        else:
-            newlist = self.__class__(
+            newlist = self.__class__.new(
+                path=path,
                 batch_size=self.batch_size,
-                keep_files=keep_files, storage_format=self._storage_format)
+                keep_files=keep_files,
+                storage_format=self._storage_format)
+        else:
+            newlist = self.__class__.new(
+                batch_size=self.batch_size,
+                keep_files=keep_files,
+                storage_format=self._storage_format)
 
         # additional call to `rmtree` here because `copytree` fails if dest dir exists
         # (even if empty). Python 3.8 has additional arg `dirs_exist_ok`.
         shutil.rmtree(newlist.path)
+        self._file_dumper.wait()
         shutil.copytree(self.path, newlist.path)
+        newlist._len = self._len
         newlist.file_lengths = self.file_lengths[:]
         newlist.cum_file_lengths = self.cum_file_lengths[:]
         newlist._append_buffer = deepcopy(self._append_buffer)
@@ -644,12 +665,12 @@ class ListView(Sequence):
         During the use of this object, it is assumed that the underlying
         `list_` is not changing. Otherwise the results may be incorrect.
         '''
-        if range_ is None:
-            range_ = range(len(list_))
         self._list = list_
         self._range = range_
 
     def __len__(self) -> int:
+        if self._range is None:
+            return len(self._list)
         return len(self._range)
 
     def __bool__(self) -> bool:
@@ -663,11 +684,23 @@ class ListView(Sequence):
         Sliced access returns a new `ListView` object.
         '''
         if isinstance(idx, int):
+            if self._range is None:
+                return self._list[idx]
             return self._list[self._range[idx]]
 
-        if not isinstance(idx, slice):
-            range_ = self._range[idx]
-            return self.__class__.__name__(self._list, range_)
+        if isinstance(idx, slice):
+            if self._range is None:
+                range_ = range(len(self._list))[idx]
+            else:
+                range_ = self._range[idx]
+            return self.__class__(self._list, range_)
 
         raise TypeError(
             f'{self.__class__.__name__} indices must be integers or slices, not {type(idx).__name__}')
+
+    def __iter__(self):
+        if self._range is None:
+            yield from self._list
+        else:
+            for i in self._range:
+                yield self._list[i]

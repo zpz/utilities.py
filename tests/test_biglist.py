@@ -83,17 +83,14 @@ def _test_view():
 
 
 def test_move():
-    bl = Biglist.new(batch_size=4)
-    bl.extend(range(17))
-
-    newpath = tempfile.mkdtemp()
-    rmtree(newpath)
-    bl.move(newpath)
-
-    assert bl.path == newpath
-    assert list(bl) == list(range(17))
-
-    bl.destroy()
+    with Biglist.new(batch_size=4) as bl:
+        bl.extend(range(17))
+        newpath = tempfile.mkdtemp()
+        rmtree(newpath)
+        bl.move(newpath)
+        assert bl.path == newpath
+        assert list(bl) == list(range(17))
+        bl.destroy()
 
 
 def _test_fileview():

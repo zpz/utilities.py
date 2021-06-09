@@ -3,6 +3,7 @@ from pprint import pprint
 from typing import List, Tuple
 
 from ..s3 import Bucket
+from .athena import AthenaTable
 
 
 logger = logging.getLogger(__name__)
@@ -243,7 +244,7 @@ class HiveTable(HiveTableMixin):
             assert location.startswith('s3n://')
         super().__init__(**kwargs, location=location)
 
-    def to_athena_table(self, db_name: str, tb_name: str = None) -> 'AthenaTable':
+    def to_athena_table(self, db_name: str, tb_name: str = None) -> AthenaTable:
         '''
         Use case of this method:
 
@@ -260,7 +261,6 @@ class HiveTable(HiveTableMixin):
             Therefore if the table's data is modified by either side of Hive and Athena,
             the other side needs to update partitions.
         '''
-        from .athena import AthenaTable
         assert self.s3external
         location = self.location
         if location.startswith('s3n://'):
@@ -276,7 +276,7 @@ class HiveTable(HiveTableMixin):
             location=location)
 
     @ classmethod
-    def from_athena_table(cls, table: 'AthenaTable', db_name: str, tb_name: str = None) -> 'HiveTable':
+    def from_athena_table(cls, table: AthenaTable, db_name: str, tb_name: str = None) -> 'HiveTable':
         '''
         Use case is analogous to `to_athena_table`.
         '''

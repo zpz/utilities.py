@@ -1,7 +1,5 @@
 import asyncio
 import logging
-import multiprocessing
-import traceback
 from typing import Callable, Awaitable
 
 from .mp import MAX_THREADS
