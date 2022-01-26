@@ -1,8 +1,8 @@
-import cProfile, pstats
+import cProfile, pstats  # noqa: E401
+import warnings
 from functools import wraps
 from io import StringIO
 from typing import Callable
-import warnings
 
 import line_profiler
 
@@ -11,7 +11,8 @@ def profiled(top: int = 32, sort_by: str = None,
              prof_file: str = None) -> Callable[[Callable], Callable]:
     """
     Print out profiling info for a test function,
-    and optionally dump the profile result in specified file for later inspection.
+    and optionally dump the profile result in specified file
+    for later inspection.
 
     Args:
         top: number of top items to print.
@@ -85,8 +86,9 @@ def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
     A line-profiling decorator.
 
     Args:
-        funcs: functions (function objects, not function names) to be line-profiled.
-            If no function is specified, the function being decorated is profiled.
+        funcs: functions (function objects, not function names)
+            to be line-profiled. If no function is specified,
+            the function being decorated is profiled.
 
     Example:
 
@@ -126,10 +128,16 @@ def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
                         if not func_names:
                             break
             if func_names:
-                # Force warnings.warn() to omit the source code line in the message
+                # Force warnings.warn() to omit the source code line
+                # in the message
                 formatwarning_orig = warnings.formatwarning
-                warnings.formatwarning = lambda message, category, filename, lineno, line=None: \
-                    formatwarning_orig(message, category, filename, lineno, line='')
+                warnings.formatwarning = (
+                    lambda message, category, filename, lineno, line=None:
+                        formatwarning_orig(
+                            message, category,
+                            filename, lineno, line='',
+                            )
+                    )
                 warnings.warn("No profile stats for %s." % str(func_names))
                 # Restore warning formatting.
                 warnings.formatwarning = formatwarning_orig
@@ -139,4 +147,3 @@ def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
         return profiled_func
 
     return mydecorator
-

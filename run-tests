@@ -1,73 +1,53 @@
 #!/bin/bash
 
-PYVER=3.8
-TESTIMG=zpz-test:latest
+set -e
+
+PROJ=zpz
 
 docker build \
-    --build-arg PYTHON_VERSION=${PYVER} \
-    --target test \
-    -t ${TESTIMG} \
+    -f Dockerfile-dev \
+    --build-arg PROJ=${PROJ} \
+    -t ${PROJ}-dev:latest \
     .
 
-if [ "$#" -gt 0 ]; then
-    # Run one specific test file.
+
+if [[ $# > 0 ]]; then
+    if [[ $# > 1 ]] || [[ $1 != -i ]]; then
+        >&2 echo unknow options "'$@'"
+        exit 1
+    fi
+
     docker run \
-        ${TESTIMG} \
-        py.test \
-            -s -v \
-            --showlocals \
-            --log-cli-level debug \
-            /opt/zpz/tests/$@
+        -it --rm \
+        -v $(pwd):/src \
+        --workdir /src \
+        -e PYTHONPATH=/src/src \
+	-e USER=$(id -un) -u $(id -u):$(id -g) -v /etc/passwd:/etc/passwd:ro \
+        ${PROJ}-dev:latest \
+        bash
 else
-    # Run all tests.
-    src=/usr/local/lib/python${PYVER}/site-packages/zpz
-
     echo
-    echo --- running bandit ---
+    echo --- checking code ---
     echo
-    docker run --rm ${TESTIMG} \
-        bandit -r -lll ${src} || exit 1
-    docker run --rm ${TESTIMG} \
-        bandit -r -lll /opt/zpz/tests || exit 1
-
-    echo
-    echo --- running pyflakes ---
-    echo
-    docker run --rm ${TESTIMG} \
-        python -m pyflakes ${src} || exit 1
-    echo
-    docker run --rm ${TESTIMG} \
-        python -m pyflakes /opt/zpz/tests || exit 1
-
-    echo
-    echo --- running mypy ---
-    echo
-    docker run --rm ${TESTIMG} \
-        bash -c "\
-            ln -s ${src} /tmp/src \
-            && python -m mypy /tmp/src \
-            && rm /tmp/src"
-    # mypy issues will not halt the build
-
-    echo
-    echo --- running pylint ---
-    echo
-    docker run --rm ${TESTIMG} \
-        bash -c "\
-            ln -s ${src} /tmp/src \
-            && python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 /tmp/src \
-            && rm /tmp/src"
-    # pylint issues will not halt the build.
+    docker run \
+        --rm \
+        -v $(pwd):/src \
+        --workdir /src \
+        -e PYTHONPATH=/src/src \
+        ${PROJ}-dev:latest \
+            /src/check-code
 
     echo
     echo --- running tests ---
     echo
-    docker run --rm ${TESTIMG} \
-        py.test \
-            --log-cli-level info \
-            --cov=zpz \
-            --cov-report term-missing \
-            --cov-fail-under 35 \
-            /opt/zpz/tests
+    docker run \
+        --rm \
+        -v $(pwd):/src \
+        --workdir /src \
+        -e PYTHONPATH=/src/src \
+	-e USER=$(id -un) -u $(id -u):$(id -g) -v /etc/passwd:/etc/passwd:ro \
+        ${PROJ}-dev:latest \
+	    --cov=/src/src/${PROJ} \
+	    --cov-report term-missing \
+            py.test /src/tests
 fi
-

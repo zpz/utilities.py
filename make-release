@@ -2,43 +2,15 @@
 
 set -e
 
-TINY=zppz/tiny:21.01.02
-
-branch=$(git branch --show-current)
-if [[ ${branch} != master ]] && [[ ${branch} != main ]]; then
-    >&2 echo Please switch to branch '"master"' or '"main"' to make a release
-    exit 1
-fi
-
-PYVER=3.8
+PROJ=zpz
 
 docker build \
-    --build-arg PYTHON_VERSION=${PYVER} \
-    --target release-test \
-    -t zpz-release-test:latest \
-    . || exit 1
+    -f Dockerfile-release \
+    --build-arg PROJ=${PROJ} \
+    -t ${PROJ}-release:latest \
+    .
 
-echo
-
-docker run --rm zpz-release-test:latest \
-    py.test \
-        --log-cli-level info \
-        --cov=zpz \
-        --cov-report term-missing \
-        --cov-fail-under 35 \
-        /tmp/zpz-dist/tests || exit 1
-
-echo
-
-version=$(docker run --rm ${TINY} make-date-version)
-
-docker build \
-    --build-arg PYTHON_VERSION=${PYVER} \
-    --target release \
-    -t zpz-installer:${version} \
-    . || exit 1
-docker rmi zpz-release-test:latest || exit 1
-
-
-echo
-echo Successfully created release zpz-installer:${version}
+docker create --name ${PROJ}-release ${PROJ}-release:latest
+rm -rf $(pwd)/build
+docker cp ${PROJ}-release:/build $(pwd)/build
+docker rm -f ${PROJ}-release

@@ -1,7 +1,8 @@
 """
 Configure logging, mainly the format.
 
-A call to the function ``config_logger`` in a launching script is all that is needed to set up the logging format.
+A call to the function ``config_logger`` in a launching script
+is all that is needed to set up the logging format.
 Usually the 'level' argument is the only argument one needs to customize::
 
   config_logger(level='info')
@@ -17,26 +18,29 @@ Library modules should have ::
 and then just use ``logger`` to write logs without concern about formatting,
 destination of the log message, etc.
 """
-from datetime import datetime
 import logging
-from logging import Formatter
 import time
-from typing import Union, Dict
 import warnings
+from datetime import datetime
+from logging import Formatter
+from typing import Union, Dict
 
 import pytz
 
-#import os
-# raiseExceptions = os.environ.get('ENVIRONMENT_TYPE', None) in ('test', 'dev')
 # When exceptions are raised during logging, then,
-# The default implementation of handleError() in Handler checks to see if a module-level variable,
-# raiseExceptions, is set.
+# the default implementation of handleError() in Handler
+# checks to see if a module-level variable,
+#   raiseExceptions,
+# is set.
 # If set, a traceback is printed to sys.stderr.
 # If not set, the exception is swallowed.
 #
 # If no logging configuration is provided, then for Python 2.x,
-#   If logging.raiseExceptions is False (production mode), the event is silently dropped.
-#   If logging.raiseExceptions is True (development mode), a message 'No handlers could be found for logger X.Y.Z' is printed once.
+#   If logging.raiseExceptions is False (production mode),
+#       the event is silently dropped.
+#   If logging.raiseExceptions is True (development mode),
+#       a message 'No handlers could be found for logger X.Y.Z'
+#       is printed once.
 
 # logging.logThreads = 0
 # logging.logProcesses = 0
@@ -65,7 +69,8 @@ def _make_config(
         timezone: str = 'US/Pacific',
         rich: bool = True,
         **kwargs) -> Dict:
-    # 'level' is string form of the logging levels: 'debug', 'info', 'warning', 'error', 'critical'.
+    # 'level' is string form of the logging levels:
+    #    'debug', 'info', 'warning', 'error', 'critical'.
     if level not in (logging.DEBUG, logging.INFO, logging.WARNING,
                      logging.ERROR, logging.CRITICAL):
         level = getattr(logging, level.upper())
@@ -127,7 +132,7 @@ def config_logger(**kwargs) -> None:
     try:
         # Turn off annoyance in ptpython when setting DEBUG logging
         logging.getLogger('parso').setLevel(logging.ERROR)
-    except:
+    except:  # noqa: E722
         pass
 
     # This is how to turn on asyncio debugging.

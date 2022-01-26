@@ -1,6 +1,6 @@
-from functools import wraps
 import sys
 import time
+from functools import wraps
 from typing import Callable, List
 
 
@@ -51,7 +51,7 @@ def humanize(seconds: float) -> List[str]:
     return msg
 
 
-def timed(print_func: Callable=None) -> Callable:
+def timed(print_func: Callable = None) -> Callable:
     '''
     Usage 1:
 
@@ -69,7 +69,8 @@ def timed(print_func: Callable=None) -> Callable:
             ...
     '''
     if print_func is None:
-        print_func = lambda text: print(text, file=sys.stderr)
+        def print_func(text):
+            print(text, file=sys.stderr)
 
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -92,4 +93,3 @@ def timed_call(func, *args, **kwargs):
     z = func(*args, **kwargs)
     seconds = time.perf_counter() - t0
     return z, seconds
-

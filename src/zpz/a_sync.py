@@ -1,17 +1,32 @@
-import asyncio
-import logging
-from typing import Callable, Awaitable
+__all__ = ['async_call']
 
-from .mp import MAX_THREADS
+import asyncio
+import concurrent.futures
+import functools
+import logging
+import multiprocessing
+from typing import Callable, Awaitable
 
 logger = logging.getLogger(__name__)
 
 
-async def concurrent_gather(*tasks, max_workers=None, return_exceptions=False):
+async def async_call(
+        func,
+        *args,
+        executor: concurrent.futures.Executor = None,
+        **kwargs):
+    loop = asyncio.get_running_loop()
+    if kwargs:
+        func = functools.partial(func, **kwargs)
+
+    return await loop.run_in_executor(executor, func, *args)
+
+
+async def concurrent_gather(
+        *tasks,
+        max_workers=None, return_exceptions=False):
     if max_workers is None:
-        max_workers = MAX_THREADS
-        # This default is suitable for I/O bound operations.
-        # For others, user may need to customize this value.
+        max_workers = multiprocessing.cpu_count()
     semaphore = asyncio.Semaphore(max_workers)
 
     async def sem_task(task):
@@ -22,11 +37,6 @@ async def concurrent_gather(*tasks, max_workers=None, return_exceptions=False):
         *(sem_task(task) for task in tasks),
         return_exceptions=return_exceptions,
     )
-
-
-def use_uvloop():
-    import uvloop
-    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 
 
 class MaybeAwait:
