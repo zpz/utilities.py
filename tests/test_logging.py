@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 # It will pass as long as the code does not crash.
 # To see the printout, run with `py.test -s`.
 def test_logging():
-    config_logger(level='warning', rich=True, with_thread_name=True)
+    config_logger(level='warning', with_thread_name=True)
     logger.debug('debug info')
     logger.info('some info')
     logger.warning('warning!')
