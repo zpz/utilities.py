@@ -9,9 +9,10 @@ logger = logging.getLogger(__name__)
 # It will pass as long as the code does not crash.
 # To see the printout, run with `py.test -s`.
 def test_logging():
-    config_logger(level='debug')
+    config_logger(level='warning', rich=True, with_thread_name=True)
     logger.debug('debug info')
     logger.info('some info')
     logger.warning('warning!')
     logger.error('something is wrong!')
-    logger.critical('something terrible has happened!')
+    logger.critical('something terrible has happened! omg omg omg OMG OMG OMG next line OMG next line OMG yes go to next line\nOMG OMG')
+

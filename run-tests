@@ -22,7 +22,7 @@ if [[ $# > 0 ]]; then
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
-	-e USER=$(id -un) -u $(id -u):$(id -g) -v /etc/passwd:/etc/passwd:ro \
+	-e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
         bash
 else
@@ -34,6 +34,7 @@ else
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
+	-e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
             /src/check-code
 
@@ -45,9 +46,10 @@ else
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
-	-e USER=$(id -un) -u $(id -u):$(id -g) -v /etc/passwd:/etc/passwd:ro \
+	-e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
+	    py.test \
 	    --cov=/src/src/${PROJ} \
 	    --cov-report term-missing \
-            py.test /src/tests
+            /src/tests
 fi
