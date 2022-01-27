@@ -35,4 +35,3 @@ def make_timestamp() -> str:
         open(file_name, 'w').write(make_timestamp())
     '''
     return datetime.utcnow().isoformat(timespec='microseconds')
-

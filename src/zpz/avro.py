@@ -1,12 +1,13 @@
-import numpy
+import io
+import json
+import warnings
+import zlib
+from typing import Union
+
 import avro.io
 import avro.datafile
 import avro.schema
-import io
-import json
-from typing import Union
-import zlib
-import warnings
+import numpy
 
 warnings.filterwarnings('ignore', category=DeprecationWarning, module='avro')
 
@@ -23,8 +24,10 @@ class BinaryEncoder(avro.io.BinaryEncoder):
         super().write_double(datum)
 
     def write_int(self, datum):
-        # Although Python `int` has unlimited bits, we'll treat it as `int` of `C`, i.e. 4 bytes.
-        # If you know the numbers can be large, use `numpy.int64`, which will be treated as `long` of `C`.
+        # Although Python `int` has unlimited bits,
+        # we'll treat it as `int` of `C`, i.e. 4 bytes.
+        # If you know the numbers can be large, use `numpy.int64`,
+        # which will be treated as `long` of `C`.
         # This `int` is the common `int32`.
         #
         # Python `int` and `numpy.int32` will call this function and be stored
@@ -181,7 +184,9 @@ def _make_schema(x, name: str) -> Union[str, dict]:
     if isinstance(x, numpy.ndarray):
         assert len(
             x.shape
-        ) == 1, "Multi-dimensional Numpy arrays are not supported. Please convert to a 1-D Numpy array and store it dimensionality info as another datum"
+        ) == 1, ("Multi-dimensional Numpy arrays are not supported. "
+                 "Please convert to a 1-D Numpy array "
+                 "and store it dimensionality info as another datum")
         z = _make_schema(x.dtype.type(), name + '_item')
         return {'name': name, 'type': 'array', 'items': z, 'pytype': 'numpy'}
 
@@ -201,15 +206,15 @@ def _make_schema(x, name: str) -> Union[str, dict]:
                 fields.append({'name': key, 'type': z})
         return {'name': name, 'type': 'record', 'fields': fields}
     if isinstance(x, list):
-        assert len(
-            x
-        ) > 0, "empty list is not supported, because its type can not be inferred"
+        assert len(x) > 0, \
+                ("empty list is not supported, "
+                 "because its type can not be inferred")
         z0 = _make_schema(x[0], name + '_item')
         if len(x) > 1:
             for v in x[1:]:
                 z1 = _make_schema(v, name + '_item')
                 assert z1 == z0, \
-                    'schema for x[0] ({}): {}; schema for x[?] ({}): {}'.format(
+                    'schema for x[0] ({}): {}; schema for x[?] ({}): {}'.format(  # noqa: E501
                         x[0], z0, v, z1)
         if len(z0) < 3:
             items = z0['type']
@@ -227,12 +232,12 @@ def make_schema(value, name: str,
 
     'simple types' include:
         int, float, str (python types)
-        numpy.{int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64}  (numpy types)
+        numpy.{int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64}  (numpy types)  # noqa: E501
 
     'compound types' include:
         dict: whose elements are simple or compound types
         list: whose elements are all the same simple or compound type
-        numpy.ndarray: must be 1-d, with `dtype` being one of the numpy 'simple' type.
+        numpy.ndarray: must be 1-d, with `dtype` being one of the numpy 'simple' type.  # noqa: E501
     '''
     sch = {'namespace': namespace, **_make_schema(value, name)}
     return json.dumps(sch)
