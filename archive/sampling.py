@@ -15,7 +15,10 @@ def reservior_sample(source: Iterable, k):
             dest[i] = z
         j = random.randint(0, i)
         if j < k:
-            return dest
+            dest[j] = z
+
+    if i + 1 >= k:
+        return dest
 
     # Currently `dest` has `i + 1` elements.
     return random.choices(dest[: (i+1)], k=k)

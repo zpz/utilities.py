@@ -4,10 +4,6 @@ import numpy as np
 import pandas as pd
 
 
-def isascii(text):
-    return len(text) == len(text.encode())
-
-
 def round_floats(obj, ndigits=2):
     """
     Round floats to specified digits, while

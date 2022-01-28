@@ -67,7 +67,6 @@ def _make_config(
         with_process_name: bool = False,
         with_thread_name: bool = False,
         timezone: str = 'US/Pacific',
-        rich: bool = True,
         **kwargs) -> Dict:
     # 'level' is string form of the logging levels:
     #    'debug', 'info', 'warning', 'error', 'critical'.
@@ -90,14 +89,9 @@ def _make_config(
 
     datefmt = '%Y-%m-%d %H:%M:%S'
 
-    if rich:
-        from rich.logging import RichHandler
-        kwargs['handlers'] = [RichHandler()]
-        msg = ''
-    else:
-        msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
-            '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
-        msg += '  '
+    msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
+        '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
+    msg += '  '
 
     if with_process_name:
         if with_thread_name:

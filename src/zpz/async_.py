@@ -24,7 +24,12 @@ async def async_call(
 
 async def concurrent_gather(
         *tasks,
-        max_workers=None, return_exceptions=False):
+        max_workers=None,
+        return_exceptions=False):
+    '''
+    Limit the number of concurrently running
+    async functions.
+    '''
     if max_workers is None:
         max_workers = multiprocessing.cpu_count()
     semaphore = asyncio.Semaphore(max_workers)
