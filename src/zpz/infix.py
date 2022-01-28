@@ -29,3 +29,6 @@ class Infix:
 
     def __call__(self, x, y):
         return self.function(x, y)
+
+
+infix = Infix
