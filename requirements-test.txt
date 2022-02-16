@@ -6,3 +6,6 @@ pytest
 pytest-asyncio
 pytest-cov
 radon
+avro-python3
+line-profiler
+

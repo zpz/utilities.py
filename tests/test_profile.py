@@ -4,7 +4,6 @@ import subprocess
 from zpz import profile
 
 
-@profile.profiled()
 def foo():
     result = 0.
     for i in range(1000000):
@@ -12,5 +11,11 @@ def foo():
 
 
 def test_profiler():
-    foo()
+    profile.profiled()(foo)()
     subprocess.call(['rm', '-f', 'cprofile.out'])
+
+
+def test_line_profiler():
+    profile.lineprofiled()(foo)()
+    subprocess.call(['rm', '-f', 'cprofile.out'])
+
