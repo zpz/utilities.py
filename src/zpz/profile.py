@@ -4,7 +4,10 @@ from functools import wraps
 from io import StringIO
 from typing import Callable
 
-import line_profiler
+try:
+    import line_profiler
+except ImportError:
+    pass
 
 
 def profiled(top: int = 32, sort_by: str = None,

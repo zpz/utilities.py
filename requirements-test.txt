@@ -8,4 +8,5 @@ pytest-cov
 radon
 avro-python3
 line-profiler
+numpy
 
