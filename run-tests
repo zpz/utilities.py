@@ -22,7 +22,7 @@ if [[ $# > 0 ]]; then
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
-	-e IMAGE_NAME=${PROJ} \
+	    -e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
         bash
 else
