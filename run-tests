@@ -5,7 +5,7 @@ set -e
 PROJ=zpz
 
 docker build \
-    -f Dockerfile-dev \
+    -f Dockerfile \
     --build-arg PROJ=${PROJ} \
     -t ${PROJ}-dev:latest \
     .
@@ -34,7 +34,7 @@ else
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
-	-e IMAGE_NAME=${PROJ} \
+        -e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
             /src/check-code
 
@@ -46,10 +46,10 @@ else
         -v $(pwd):/src \
         --workdir /src \
         -e PYTHONPATH=/src/src \
-	-e IMAGE_NAME=${PROJ} \
+	    -e IMAGE_NAME=${PROJ} \
         ${PROJ}-dev:latest \
-	    py.test \
-	    --cov=/src/src/${PROJ} \
-	    --cov-report term-missing \
+	        py.test \
+            --cov=/src/src/${PROJ} \
+            --cov-report term-missing \
             /src/tests
 fi
