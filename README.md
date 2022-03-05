@@ -18,19 +18,3 @@ To install, do
 ```
 pip install zpz
 ```
-
-How to make a release
----------------------
-
-When code is ready, in the Docker container, run
-
-```
-$ python -m build
-```
-
-Distribution packages are written into `dist/`.
-Then outside of Docker container, run
-
-```
-$ python -m twine upload dist/*
-```

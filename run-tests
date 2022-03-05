@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This builds Docker image, starts a container,
+# and lands in it for interactive tests.
+
 set -e
 
 # Infer package name:
