@@ -139,8 +139,8 @@ def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
                         formatwarning_orig(
                             message, category,
                             filename, lineno, line='',
-                            )
-                    )
+                        )
+                )
                 warnings.warn("No profile stats for %s." % str(func_names))
                 # Restore warning formatting.
                 warnings.formatwarning = formatwarning_orig

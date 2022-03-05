@@ -1,0 +1,33 @@
+FROM quay.io/pypa/manylinux2010_x86_64
+USER root
+
+ARG PROJ
+ARG PLAT=manylinux2010_x86_64
+
+ENV PROJ=${PROJ}
+ENV BUILDDIR=/build
+
+ENV PYVER=cp38-cp38
+ENV PYBIN=/opt/python/cp38-cp38/bin
+ENV PIP=${PYBIN}/pip
+
+COPY . /src/
+
+RUN \
+    ${PIP} install build && \
+    ${PIP} install -r /src/requirements-test.txt && \
+    ${PIP} install -e /src/ && \
+    ${PIP} uninstall -y ${PROJ} && \
+    echo && echo ---- building ---- && echo && \
+    ${PYBIN}/python -m build -o ${BUILDDIR} /src/ && \
+    for wheel in ${BUILDDIR}/*.whl; do \
+        if ! auditwheel show "$wheel"; then \
+            echo "Skipping non-platform wheel $wheel"; \
+        else \
+            auditwheel repair "$wheel" --plat "$PLAT" -w ${BUILDDIR}; \
+        fi \
+    done && \
+    echo && echo ---- testing ---- && echo && \
+    ${PIP} install ${PROJ} --no-index -f ${BUILDDIR} && \
+    ${PYBIN}/python -m pytest /src/tests
+

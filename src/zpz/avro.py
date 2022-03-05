@@ -207,8 +207,8 @@ def _make_schema(x, name: str) -> Union[str, dict]:
         return {'name': name, 'type': 'record', 'fields': fields}
     if isinstance(x, list):
         assert len(x) > 0, \
-                ("empty list is not supported, "
-                 "because its type can not be inferred")
+            ("empty list is not supported, "
+             "because its type can not be inferred")
         z0 = _make_schema(x[0], name + '_item')
         if len(x) > 1:
             for v in x[1:]:
