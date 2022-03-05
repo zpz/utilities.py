@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Run this script within container.
+# If everything goes well, then built package is in dist/.
+# Outside of Docker, do
+#   $ python3 -m twine upload dist/*
+
+
+set -e
+
+TESTCOV=50
+
+while [[ $# > 0 ]]; do
+    if [[ "$1" == --cov ]]; then
+        shift
+        TESTCOV="$1"
+    else
+        >&2 echo "unknown option $1"
+        exit 1
+    fi
+done
+
+
+# Infer package name:
+rm -rf src/*egg-info
+proj="$(ls src/)"
+if [[ $proj = *' '* ]]; then
+    >&2 echo "unable to infer project name"
+    exit 1
+fi
+PROJ=${proj%/}
+
+
+SRC=$(pwd)/src/${PROJ}
+TESTS=$(pwd)/tests
+
+
+echo
+echo --- running bandit ---
+echo
+bandit -r -lll ${SRC}
+bandit -r -lll ${TESTS}
+
+echo
+echo --- flake8 ---
+echo
+python -m flake8 --ignore E501,W503 ${SRC}
+
+echo
+echo --- running mypy ---
+echo
+python -m mypy --show-error-codes --disable-error-code import ${SRC} || true
+
+echo
+echo --- running pylint ---
+echo
+python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 ${SRC} || true
+
+
+echo
+echo --- running tests ---
+echo
+py.test --cov=/src/src/${PROJ} --cov-report term-missing --cov-fail-under=${TESTCOV} /src/tests
+
+python -m build /src
+rm -rf /src/src/*egg-info
+
