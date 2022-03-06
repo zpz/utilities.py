@@ -14,17 +14,30 @@ if [[ $proj = *' '* ]]; then
 fi
 PROJ=${proj%/}
 
+
+cat <<EOF >Dockerfile
+FROM zppz/py3:22.02.27
+USER root
+
+COPY . /src/
+WORKDIR  /src
+
+RUN python -m pip install -e .[tests]
+
+USER docker-user
+EOF
+
+
 docker build \
     -f Dockerfile \
-    --build-arg PROJ=${PROJ} \
     -t ${PROJ}-dev:latest \
     .
+
+rm -f Dockerfile
 
 docker run \
     -it --rm \
     -v $(pwd):/src \
-    --workdir /src \
-    -e PYTHONPATH=/src/src \
     -e IMAGE_NAME=${PROJ} \
     ${PROJ}-dev:latest \
     bash

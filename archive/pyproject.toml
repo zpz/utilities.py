@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools", "wheel", "build"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-sv --log-cli-level info -p no:cacheprovider"
+
+
+[tool.coverage.run]
+data_file = "/tmp/.coverage"
