@@ -13,9 +13,9 @@ dependencies = [
 ]
 requires-python = ">=3.8"
 readme = "README.md"
+license = {file = "LICENSE"}
 classifiers = [
     "Intended Audience :: Developers",
-    "Licence :: OSI Approved :: MIT Licence",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
@@ -30,24 +30,41 @@ Source = "https://github.com/zpz/utilities.py"
 avro = [
     "avro-python3",
     "numpy",
+    "snappy",
 ]
 lineprofiler = [
     "line-profiler >=3.0,<4.0",
 ]
 test = [
     "bandit",
+    "coverage[toml]",
     "flake8",
     "mypy",
     "pylint",
     "pytest",
-    "pytest-cov",
-    "radon",
 ]
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-sv --log-cli-level info -p no:cacheprovider"
 
 
-[tool.coverage.run]
-data_file = "/tmp/.coverage"
+[tool.coverage.report]
+fail_under = 60
+show_missing = true
+skip_empty = true
+
+
+[tool.pylint.messages_control]
+max-line-length = 88
+disable = [
+    "consider-using-f-string",
+    "missing-docstring",
+    "invalid-name",
+    "line-too-long",
+    "fixme",
+    "too-few-public-methods",
+    "too-many-branches",
+    "too-many-return-statements",
+]

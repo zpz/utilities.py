@@ -7,6 +7,8 @@ from typing import Callable, List
 class Timer:
     def __init__(self):
         self._running = False
+        self._t_start = None
+        self._t_stop = None
 
     def start(self):
         self._t_start = time.perf_counter()

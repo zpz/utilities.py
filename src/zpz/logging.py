@@ -80,7 +80,7 @@ def _make_config(
     elif timezone.lower() == 'local':
         Formatter.converter = time.localtime
     else:
-        def custom_time(*args):
+        def custom_time(*args):  # pylint: disable=unused-argument
             utc_dt = pytz.utc.localize(datetime.utcnow())
             my_tz = pytz.timezone(timezone)
             converted = utc_dt.astimezone(my_tz)
@@ -126,7 +126,7 @@ def config_logger(**kwargs) -> None:
     try:
         # Turn off annoyance in ptpython when setting DEBUG logging
         logging.getLogger('parso').setLevel(logging.ERROR)
-    except:  # noqa: E722
+    except Exception:
         pass
 
     # This is how to turn on asyncio debugging.
