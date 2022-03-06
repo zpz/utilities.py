@@ -56,6 +56,7 @@ echo
 coverage report --data-file=/tmp/.coverage
 
 
+rm -rf dist/
 python -m build /src
 rm -rf /src/src/*egg-info
 
