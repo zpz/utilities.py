@@ -1,4 +1,5 @@
-import cProfile, pstats  # noqa: E401
+import cProfile
+import pstats
 import warnings
 from functools import wraps
 from io import StringIO
@@ -84,7 +85,7 @@ def profiled(top: int = 32, sort_by: str = None,
     return mydecorator
 
 
-def lineprofiled(*funcs) -> Callable[[Callable], Callable]:
+def lineprofiled(*funcs) -> Callable[[Callable], Callable]:  # pylint: disable=unused-argument
     """
     A line-profiling decorator.
 

@@ -14,11 +14,27 @@ if [[ $proj = *' '* ]]; then
 fi
 PROJ=${proj%/}
 
-docker build \
-    -f Dockerfile \
-    --build-arg PROJ=${PROJ} \
-    -t ${PROJ}-dev:latest \
-    .
+
+# Find all "extra-requires" names in the 'project.optional-dependencies' section.
+extras=$(python3 -c "import toml; print(','.join(toml.load('pyproject.toml')['project']['optional-dependencies'].keys()))")
+
+rm -f Dockerfile
+cat <<EOF >Dockerfile
+FROM zppz/py3:22.03.06
+USER root
+
+COPY . /tmp/src/
+
+RUN python -m pip install /tmp/src/[${extras}] \\
+    && python -m pip uninstall -y ${PROJ} \\
+    && rm -rf /tmp/src
+
+USER docker-user
+EOF
+
+
+docker build -t ${PROJ}-dev:latest .
+rm -f Dockerfile
 
 docker run \
     -it --rm \
@@ -28,3 +44,4 @@ docker run \
     -e IMAGE_NAME=${PROJ} \
     ${PROJ}-dev:latest \
     bash
+

@@ -16,11 +16,11 @@ class BinaryEncoder(avro.io.BinaryEncoder):
     def write_float(self, datum):
         # A `numpy.float32` will call this function and be stored as
         # 4-byte `float` of `C`.
-        assert type(datum) is numpy.float32
+        assert type(datum) is numpy.float32  # pylint: disable=unidiomatic-typecheck
         super().write_float(datum)
 
     def write_double(self, datum):
-        assert type(datum) is float or type(datum) is numpy.float64
+        assert type(datum) is float or type(datum) is numpy.float64  # pylint: disable=unidiomatic-typecheck
         super().write_double(datum)
 
     def write_int(self, datum):
@@ -32,7 +32,7 @@ class BinaryEncoder(avro.io.BinaryEncoder):
         #
         # Python `int` and `numpy.int32` will call this function and be stored
         # as 4-byte `int` of `C`.
-        assert type(datum) is int or type(datum) is numpy.int32
+        assert type(datum) is int or type(datum) is numpy.int32  # pylint: disable=unidiomatic-typecheck
         assert -2147483648 < datum < 2147483647
         datum = (datum << 1) ^ (datum >> 31)
         while (datum & ~0x7f) != 0:
@@ -40,8 +40,8 @@ class BinaryEncoder(avro.io.BinaryEncoder):
             datum >>= 7
         self.WriteByte(datum)
 
-    def write_long(self, datum):
-        super().write_long(datum)
+    # def write_long(self, datum):
+    #     super().write_long(datum)
 
 
 class DatumWriter(avro.io.DatumWriter):
@@ -93,14 +93,14 @@ class DatumReader(avro.io.DatumReader):
             elif writer_schema.type == 'array':
                 z = numpy.array(z)
             elif writer_schema.type == 'fixed':
-                assert type(z) is bytes
+                assert type(z) is bytes  # pylint: disable=unidiomatic-typecheck
                 dtype = numpy.dtype(writer_schema.props['logical_type'])
                 z = numpy.frombuffer(z, dtype)[0]
         return z
 
 
 class DataFileReader(avro.datafile.DataFileReader):
-    def __init__(self, reader):
+    def __init__(self, reader):  # pylint: disable=super-init-not-called
         # Same as superclass, except for replacing `avro.io.BinaryDecoder`
         # by `BinaryDecoder` (the custom version above).
 
@@ -120,7 +120,7 @@ class DataFileReader(avro.datafile.DataFileReader):
             self.codec = avro_codec_raw.decode('utf-8')
         if self.codec not in avro.datafile.VALID_CODECS:
             raise avro.datafile.DataFileException(
-                'Unknown codec: %s.' % self.codec)
+                f'Unknown codec: {repr(self.codec)}.')
 
         self._file_length = self._GetInputFileLength()
 
@@ -148,17 +148,18 @@ class DataFileReader(avro.datafile.DataFileReader):
             uncompressed = zlib.decompress(data, -15)
             self._datum_decoder = BinaryDecoder(io.BytesIO(uncompressed))
         elif self.codec == 'snappy':
-            import snappy  # Import here b/c we don't expect this to be used.
+            import snappy  # pylint: disable=import-outside-toplevel
+            # Import here b/c we don't expect this to be used.
 
             # Compressed data includes a 4-byte CRC32 checksum
             length = self.raw_decoder.read_long()
             data = self.raw_decoder.read(length - 4)
-            uncompressed = snappy.decompress(data)
+            uncompressed = snappy.decompress(data)  # pylint: disable=no-member
             self._datum_decoder = BinaryDecoder(io.BytesIO(uncompressed))
             self.raw_decoder.check_crc32(uncompressed)
         else:
             raise avro.datafile.DataFileException(
-                "Unknown codec: %r" % self.codec)
+                f"Unknown codec: {repr(self.codec)}")
 
 
 def _make_schema(x, name: str) -> Union[str, dict]:
@@ -213,9 +214,7 @@ def _make_schema(x, name: str) -> Union[str, dict]:
         if len(x) > 1:
             for v in x[1:]:
                 z1 = _make_schema(v, name + '_item')
-                assert z1 == z0, \
-                    'schema for x[0] ({}): {}; schema for x[?] ({}): {}'.format(  # noqa: E501
-                        x[0], z0, v, z1)
+                assert z1 == z0, f'schema for x[0] ({x[0]}): {z0}; schema for x[?] ({v}): {z1}'
         if len(z0) < 3:
             items = z0['type']
         else:

@@ -39,7 +39,7 @@ def parse_other_args(args: List[str]) -> Dict:
         {'age': 38, 'title': 'engineer', 'print_details': True}
     '''
     if not args:
-        return dict()
+        return {}
     result = {}
     next_arg = None
     for x in args:

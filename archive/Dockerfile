@@ -1,0 +1,12 @@
+FROM zppz/py3:22.02.27
+USER root
+
+ARG PROJ
+
+COPY . /src/
+
+RUN cd /src \
+    && python -m pip install -e .[tests] \
+    && python -m pip uninstall -y ${PROJ}
+
+USER docker-user
