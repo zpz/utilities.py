@@ -42,6 +42,7 @@ docker run \
     --workdir /src \
     -e PYTHONPATH=/src/src \
     -e IMAGE_NAME=${PROJ} \
+    $@ \
     ${PROJ}-dev:latest \
     bash
 
