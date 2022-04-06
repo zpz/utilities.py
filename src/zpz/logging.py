@@ -91,17 +91,16 @@ def _make_config(
 
     msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
         '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
-    msg += '  '
 
     if with_process_name:
         if with_thread_name:
-            fmt = f'{msg}[%(processName) %(threadName)s]  %(message)s'
+            fmt = f'{msg} [%(processName) %(threadName)s]  %(message)s'
         else:
-            fmt = f'{msg}[%(processName)s]  %(message)s'
+            fmt = f'{msg} [%(processName)s]  %(message)s'
     elif with_thread_name:
-        fmt = f'{msg}[%(threadName)s]  %(message)s'
+        fmt = f'{msg} [%(threadName)s]  %(message)s'
     else:
-        fmt = f'{msg}%(message)s'
+        fmt = f'{msg}  %(message)s'
 
     return dict(format=fmt, datefmt=datefmt, level=level, **kwargs)
 
