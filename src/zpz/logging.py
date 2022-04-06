@@ -97,7 +97,7 @@ def _make_config(
         if with_thread_name:
             fmt = f'{msg}[%(processName) %(threadName)s]  %(message)s'
         else:
-            fmt = f'{msg}[%(processName)s  %(message)s]'
+            fmt = f'{msg}[%(processName)s]  %(message)s'
     elif with_thread_name:
         fmt = f'{msg}[%(threadName)s]  %(message)s'
     else:
