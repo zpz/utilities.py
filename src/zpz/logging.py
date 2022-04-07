@@ -66,7 +66,7 @@ def _make_config(
         level: Union[str, int] = 'info',
         with_process_name: bool = False,
         with_thread_name: bool = False,
-        timezone: str = 'US/Pacific',
+        timezone: str = 'local',
         **kwargs) -> Dict:
     # 'level' is string form of the logging levels:
     #    'debug', 'info', 'warning', 'error', 'critical'.
@@ -79,7 +79,7 @@ def _make_config(
         Formatter.converter = time.gmtime
     elif timezone.lower() == 'local':
         Formatter.converter = time.localtime
-    else:
+    else:  # e.g. 'US/Pacific'
         def custom_time(*args):  # pylint: disable=unused-argument
             utc_dt = pytz.utc.localize(datetime.utcnow())
             my_tz = pytz.timezone(timezone)
@@ -89,7 +89,7 @@ def _make_config(
 
     datefmt = '%Y-%m-%d %H:%M:%S'
 
-    msg = '[%(asctime)s.%(msecs)03d ' + timezone + \
+    msg = '[%(asctime)s.%(msecs)02d ' + timezone + \
         '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]'
 
     if with_process_name:
