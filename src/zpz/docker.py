@@ -1,6 +1,9 @@
 import subprocess
 
 def get_host_ip():
+    '''
+    Get the IP address of the host machine from within a Docker container.
+    '''
     # INTERNAL_HOST_IP=$(ip route show default | awk '/default/ {print $3})')
     # another idea:
     # ip -4 route list match 0/0 | cut -d' ' -f3

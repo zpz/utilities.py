@@ -1,3 +1,8 @@
+'''
+This is a small Python language exercise.
+Recommendation for practical use of this decorator is not implied.
+'''
+
 import functools
 from typing import Callable, Any
 
