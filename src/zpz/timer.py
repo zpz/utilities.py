@@ -1,36 +1,8 @@
 import sys
 import time
+from contextlib import contextmanager
 from functools import wraps
 from typing import Callable, List
-
-
-class Timer:
-    def __init__(self):
-        self._running = False
-        self._t_start = None
-        self._t_stop = None
-
-    def start(self):
-        self._t_start = time.perf_counter()
-        self._t_stop = None
-        self._running = True
-        return self
-
-    def stop(self):
-        if self._running:
-            self._t_stop = time.perf_counter()
-            self._running = False
-        return self
-
-    @property
-    def seconds(self):
-        if self._running:
-            return time.perf_counter() - self._t_start
-        return self._t_stop - self._t_start
-
-    @property
-    def milliseconds(self):
-        return self.seconds * 1000
 
 
 def humanize(seconds: float) -> List[str]:
@@ -78,9 +50,9 @@ def timed(print_func: Callable = None) -> Callable:
         @wraps(func)
         def profiled_func(*args, **kwargs):
             print_func(f'Starting function `{func.__name__}`')
-            timer = Timer().start()
+            t0 = time.monotonic()
             result = func(*args, **kwargs)
-            duration = ', '.join(humanize(timer.stop().seconds))
+            duration = ', '.join(humanize(time.monotonic() - t0))
             print_func(f'Finishing function `{func.__name__}`')
             print_func(f'Function `{func.__name__}` took {duration} to finish')
             return result
@@ -91,7 +63,24 @@ def timed(print_func: Callable = None) -> Callable:
 
 
 def timed_call(func, *args, **kwargs):
-    t0 = time.perf_counter()
+    t0 = time.monotonic()
     z = func(*args, **kwargs)
-    seconds = time.perf_counter() - t0
+    seconds = time.monotonic() - t0
     return z, seconds
+
+
+@contextmanager
+def timer(msg: str):
+    '''
+    Time a code block:
+
+        with timer('my block'):
+            x = 3
+            y = 4
+            ...
+    '''
+    t0 = time.monotonic()
+    yield
+    t1 = time.monotonic()
+    print(f"{msg}: {humanize(t1 - t0)}")
+

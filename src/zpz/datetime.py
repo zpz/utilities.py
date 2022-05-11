@@ -1,5 +1,3 @@
-__all__ = ['pacificnow']
-
 from datetime import datetime
 
 from pytz import timezone

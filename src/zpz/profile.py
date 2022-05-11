@@ -5,11 +5,6 @@ from functools import wraps
 from io import StringIO
 from typing import Callable
 
-try:
-    import line_profiler
-except ImportError:
-    pass
-
 
 def profiled(top: int = 32, sort_by: str = None,
              prof_file: str = None) -> Callable[[Callable], Callable]:
@@ -85,69 +80,75 @@ def profiled(top: int = 32, sort_by: str = None,
     return mydecorator
 
 
-def lineprofiled(*funcs) -> Callable[[Callable], Callable]:  # pylint: disable=unused-argument
-    """
-    A line-profiling decorator.
+try:
+    import line_profiler
+except ImportError:
+    pass
+else:
 
-    Args:
-        funcs: functions (function objects, not function names)
-            to be line-profiled. If no function is specified,
-            the function being decorated is profiled.
+    def lineprofiled(*funcs) -> Callable[[Callable], Callable]:  # pylint: disable=unused-argument
+        """
+        A line-profiling decorator.
 
-    Example:
+        Args:
+            funcs: functions (function objects, not function names)
+                to be line-profiled. If no function is specified,
+                the function being decorated is profiled.
 
-            @lineprofiled()
-            def myfunc(a, b):
-                g(a)
-                f(b)
+        Example:
 
-            @lineprofiled(g, f)
-            def yourfunc(a, b):
-                x = g(a)
-                y = f(b)
-                s(x, y)
-    """
+                @lineprofiled()
+                def myfunc(a, b):
+                    g(a)
+                    f(b)
 
-    def mydecorator(func):
-        nonlocal funcs
-        if not funcs:
-            funcs = [func]
+                @lineprofiled(g, f)
+                def yourfunc(a, b):
+                    x = g(a)
+                    y = f(b)
+                    s(x, y)
+        """
 
-        @wraps(func)
-        def profiled_func(*args, **kwargs):
-            func_names = [f.__name__ for f in funcs]
-            profile = line_profiler.LineProfiler(*funcs)
-            z = profile.runcall(func, *args, **kwargs)
+        def mydecorator(func):
+            nonlocal funcs
+            if not funcs:
+                funcs = [func]
 
-            profile.print_stats()
-            stats = profile.get_stats()
-            if not stats.timings:
-                warnings.warn("No profile stats.")
+            @wraps(func)
+            def profiled_func(*args, **kwargs):
+                func_names = [f.__name__ for f in funcs]
+                profile = line_profiler.LineProfiler(*funcs)
+                z = profile.runcall(func, *args, **kwargs)
+
+                profile.print_stats()
+                stats = profile.get_stats()
+                if not stats.timings:
+                    warnings.warn("No profile stats.")
+                    return z
+
+                for key, timings in stats.timings.items():
+                    if key[-1] in func_names:
+                        if len(timings) > 0:
+                            func_names.remove(key[-1])
+                            if not func_names:
+                                break
+                if func_names:
+                    # Force warnings.warn() to omit the source code line
+                    # in the message
+                    formatwarning_orig = warnings.formatwarning
+                    warnings.formatwarning = (
+                        lambda message, category, filename, lineno, line=None:
+                            formatwarning_orig(
+                                message, category,
+                                filename, lineno, line='',
+                            )
+                    )
+                    warnings.warn("No profile stats for %s." % str(func_names))
+                    # Restore warning formatting.
+                    warnings.formatwarning = formatwarning_orig
+
                 return z
 
-            for key, timings in stats.timings.items():
-                if key[-1] in func_names:
-                    if len(timings) > 0:
-                        func_names.remove(key[-1])
-                        if not func_names:
-                            break
-            if func_names:
-                # Force warnings.warn() to omit the source code line
-                # in the message
-                formatwarning_orig = warnings.formatwarning
-                warnings.formatwarning = (
-                    lambda message, category, filename, lineno, line=None:
-                        formatwarning_orig(
-                            message, category,
-                            filename, lineno, line='',
-                        )
-                )
-                warnings.warn("No profile stats for %s." % str(func_names))
-                # Restore warning formatting.
-                warnings.formatwarning = formatwarning_orig
+            return profiled_func
 
-            return z
-
-        return profiled_func
-
-    return mydecorator
+        return mydecorator

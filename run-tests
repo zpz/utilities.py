@@ -5,25 +5,6 @@
 
 set -e
 
-PARENT=zppz/py3:22.03.06
-
-if [[ $# > 0 ]]; then
-    if [[ $1 == --parent ]]; then
-        shift
-        PARENT="$1"
-        shift
-    else
-        >&2 echo "unknown option '$1'"
-        exit 1
-    fi
-fi
-if [[ $# > 0 ]]; then
-    >&2 echo "unknown option '$1'"
-    exit 1
-fi
-
-
-
 # Infer package name:
 rm -rf src/*egg-info
 proj="$(ls src/)"
@@ -39,8 +20,7 @@ extras=$(python3 -c "import toml; print(','.join(toml.load('pyproject.toml')['pr
 
 rm -f Dockerfile
 cat <<EOF >Dockerfile
-FROM ${PARENT}
-ENV PARENT_IMAGE ${PARENT}
+FROM zppz/py3:22.03.06
 USER root
 
 COPY . /tmp/src/
@@ -62,7 +42,6 @@ docker run \
     --workdir /src \
     -e PYTHONPATH=/src/src \
     -e IMAGE_NAME=${PROJ} \
-    $@ \
     ${PROJ}-dev:latest \
     bash
 
