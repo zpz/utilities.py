@@ -1,5 +1,6 @@
 import subprocess
 
+
 def get_host_ip():
     '''
     Get the IP address of the host machine from within a Docker container.
@@ -13,6 +14,5 @@ def get_host_ip():
     # In most documentation this is said to be '127.0.0.1'.
 
     z = subprocess.check_output(['ip', '-4', 'route', 'list', 'match', '0/0'])
-    z = z.decode()[len('default via ') :]
+    z = z.decode()[len('default via '):]
     return z[: z.find(' ')]
-

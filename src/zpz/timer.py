@@ -83,4 +83,3 @@ def timer(msg: str):
     yield
     t1 = time.monotonic()
     print(f"{msg}: {humanize(t1 - t0)}")
-
