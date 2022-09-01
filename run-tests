@@ -1,27 +1,9 @@
 #!/bin/bash
 
-# This builds Docker image, starts a container,
-# and lands in it for interactive tests.
+# Run this script within the container launched by `./run`.
+
 
 set -e
-
-PARENT=zppz/py3:22.05.30
-
-if [[ $# > 0 ]]; then
-    if [[ $1 == --parent ]]; then
-        shift
-        PARENT="$1"
-        shift
-    else
-        >&2 echo "unknown option '$1'"
-        exit 1
-    fi
-fi
-if [[ $# > 0 ]]; then
-    >&2 echo "unknown option '$1'"
-    exit 1
-fi
-
 
 
 # Infer package name:
@@ -34,35 +16,38 @@ fi
 PROJ=${proj%/}
 
 
-# Find all "extra-requires" names in the 'project.optional-dependencies' section.
-extras=$(python3 -c "import toml; print(','.join(toml.load('pyproject.toml')['project']['optional-dependencies'].keys()))")
-
-rm -f Dockerfile
-cat <<EOF >Dockerfile
-FROM ${PARENT}
-ENV PARENT_IMAGE ${PARENT}
-USER root
-
-COPY . /tmp/src/
-
-RUN python -m pip install /tmp/src/[${extras}] \\
-    && python -m pip uninstall -y ${PROJ} \\
-    && rm -rf /tmp/src
-
-USER docker-user
-EOF
+SRC=$(pwd)/src/${PROJ}
+TESTS=$(pwd)/tests
 
 
-docker build -t ${PROJ}-dev:latest .
-rm -f Dockerfile
+echo
+echo --- running bandit ---
+echo
+bandit -r -lll ${SRC}
+bandit -r -lll ${TESTS}
 
-docker run \
-    -it --rm \
-    -v $(pwd):/src \
-    --workdir /src \
-    -e PYTHONPATH=/src/src \
-    -e IMAGE_NAME=${PROJ} \
-    $@ \
-    ${PROJ}-dev:latest \
-    bash
+echo
+echo --- running flake8 ---
+echo
+python -m flake8 --ignore E501,W503 ${SRC}
 
+echo
+echo --- running mypy ---
+echo
+python -m mypy --show-error-codes --disable-error-code import ${SRC} || true
+
+echo
+echo --- running pylint ---
+echo
+python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 ${SRC} || pylint-exit $?
+# python -m pylint --errors-only ${SRC} || pylint-exit $?
+
+
+echo
+echo --- running tests ---
+echo
+coverage run --data-file=/tmp/.coverage --source=/src/src -m pytest /src/tests
+echo
+echo --- reporting coverage ---
+echo
+coverage report --data-file=/tmp/.coverage

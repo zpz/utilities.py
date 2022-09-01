@@ -41,6 +41,7 @@ test = [
     "flake8",
     "mypy",
     "pylint",
+    "pylint-exit",
     "pytest",
 ]
 
