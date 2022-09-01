@@ -1,60 +1,14 @@
 #!/bin/bash
 
-# Run this script within container.
-# If everything goes well, then built package is in dist/.
-# Outside of Docker, do
+# Run this script within the container launched by `./run`.
+# If everything goes well, the built package is in dist/.
+# Outside of Docker, upload the package to PyPI by
 #   $ python3 -m twine upload dist/*
 
 
 set -e
 
-
-# Infer package name:
-rm -rf src/*egg-info
-proj="$(ls src/)"
-if [[ $proj = *' '* ]]; then
-    >&2 echo "unable to infer project name"
-    exit 1
-fi
-PROJ=${proj%/}
-
-
-SRC=$(pwd)/src/${PROJ}
-TESTS=$(pwd)/tests
-
-
-echo
-echo --- running bandit ---
-echo
-bandit -r -lll ${SRC}
-bandit -r -lll ${TESTS}
-
-echo
-echo --- running flake8 ---
-echo
-python -m flake8 --ignore E501,W503 ${SRC}
-
-echo
-echo --- running mypy ---
-echo
-python -m mypy --show-error-codes --disable-error-code import ${SRC} || true
-
-echo
-echo --- running pylint ---
-echo
-#python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 ${SRC} || true
-python -m pylint --errors-only ${SRC}
-
-
-echo
-echo --- running tests ---
-echo
-coverage run --data-file=/tmp/.coverage --source=/src/src -m pytest /src/tests
-echo
-echo --- reporting coverage ---
-echo
-coverage report --data-file=/tmp/.coverage
-
+./run-tests || exit 1
 
 rm -rf dist/
 python -m build /src
