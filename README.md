@@ -18,3 +18,5 @@ To install, do
 ```
 pip install zpz
 ```
+
+There are a few optional dependencies specified by 'avro' and 'lineprofiler'.
