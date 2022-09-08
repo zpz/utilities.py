@@ -48,8 +48,6 @@ COPY . /tmp/src/
 RUN python -m pip install /tmp/src/[${extras}] \\
     && python -m pip uninstall -y ${PROJ} \\
     && rm -rf /tmp/src
-
-USER docker-user
 EOF
 
 
@@ -62,6 +60,5 @@ docker run \
     --workdir /src \
     -e PYTHONPATH=/src/src \
     -e IMAGE_NAME=${PROJ} \
-    $@ \
     ${PROJ}-dev:latest \
     bash
