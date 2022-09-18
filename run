@@ -54,11 +54,18 @@ EOF
 docker build -t ${PROJ}-dev:latest .
 rm -f Dockerfile
 
+# Absolute path of current directory:
+THISDIR="$( dirname $( realpath "${BASH_SOURCE[0]}" ))"
+# Releative to HOME:
+WORKDIR=${THISDIR#${HOME}}
+WORKDIR=${WORKDIR#/}
+workdir=/home/docker-user/${WORKDIR}
+
 docker run \
     -it --rm \
-    -v $(pwd):/src \
-    --workdir /src \
-    -e PYTHONPATH=/src/src \
+    -v $(pwd):${workdir} \
+    --workdir ${workdir} \
+    -e PYTHONPATH=${workdir}/src \
     -e IMAGE_NAME=${PROJ} \
     ${PROJ}-dev:latest \
     bash

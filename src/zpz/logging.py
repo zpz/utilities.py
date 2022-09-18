@@ -132,7 +132,7 @@ def unuse_disk_handler():
     return _unuse_handler('disk')
 
 
-def log_uncaught_exception(handlers=None, logger=logger)
+def log_uncaught_exception(handlers=None, logger=logger):
     # locally bind `handlers` and `logger` in case the global references are gone
     # when the exception handler is invoked.
     if handlers is None:
