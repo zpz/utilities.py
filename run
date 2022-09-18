@@ -56,7 +56,8 @@ rm -f Dockerfile
 
 # Absolute path of current directory:
 # THISDIR="$( dirname $( realpath "${BASH_SOURCE[0]}" ))"
-THISDIR="$( dirname $( realpath "$0" ))"
+THISDIR="$( realpath "$(pwd)" )"
+echo thisdir: $THISDIR
 # Releative to HOME:
 WORKDIR=${THISDIR#${HOME}}
 WORKDIR=${WORKDIR#/}
