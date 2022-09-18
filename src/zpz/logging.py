@@ -21,7 +21,7 @@ import os
 import sys
 import warnings
 from datetime import datetime
-from typing import Union, Dict
+from typing import Union
 
 
 # When exceptions are raised during logging, then,
