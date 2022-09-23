@@ -39,7 +39,7 @@ python -m mypy --show-error-codes --disable-error-code import ${SRC}/${PROJ} || 
 echo
 echo --- running pylint ---
 echo
-python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0303,C0305,R0903 ${SRC}/${PROJ} || pylint-exit $?
+python -m pylint --disable=C0103,C0114,C0115,C0116,C0301,C0302,C0303,C0305,R0902,R0903,R1705,W0201,W0223 ${SRC}/${PROJ} || pylint-exit $?
 # python -m pylint --errors-only ${SRC} || pylint-exit $?
 
 
