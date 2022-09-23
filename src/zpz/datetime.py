@@ -15,11 +15,11 @@ def tznow(tzname):
 
 
 def pacificnow():
-    return tznow('America/Los_Angeles')
+    return tznow("America/Los_Angeles")
 
 
 def make_timestamp() -> str:
-    '''
+    """
     This function creates a timestamp string with fixed format like
 
         '2020-08-22T08:09:13.401346'
@@ -31,5 +31,5 @@ def make_timestamp() -> str:
     The returned string is often written as a timestamp file, like
 
         open(file_name, 'w').write(make_timestamp())
-    '''
-    return datetime.utcnow().isoformat(timespec='microseconds')
+    """
+    return datetime.utcnow().isoformat(timespec="microseconds")

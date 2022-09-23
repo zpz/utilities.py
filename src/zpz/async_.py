@@ -7,10 +7,8 @@ logger = logging.getLogger(__name__)
 
 
 async def async_call(
-        func,
-        *args,
-        executor: concurrent.futures.Executor = None,
-        **kwargs):
+    func, *args, executor: concurrent.futures.Executor = None, **kwargs
+):
     loop = asyncio.get_running_loop()
     if kwargs:
         func = functools.partial(func, **kwargs)

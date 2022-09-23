@@ -1,14 +1,14 @@
-'''
+"""
 This is a small Python language exercise.
 Recommendation for practical use of this decorator is not implied.
-'''
+"""
 
 import functools
 from typing import Callable, Any
 
 
 class Infix:
-    '''
+    """
     Suppose we have
 
         @Infix
@@ -22,7 +22,8 @@ class Infix:
     is equivalent to
 
         func(x, y)
-    '''
+    """
+
     def __init__(self, function: Callable[[Any, Any], Any]):
         self.function = function
 
