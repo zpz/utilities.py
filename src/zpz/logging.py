@@ -41,15 +41,13 @@ from typing import Union
 
 
 # Turn off annoyance in ptpython when setting DEBUG logging
-logging.getLogger('parso').setLevel(logging.ERROR)
+logging.getLogger("parso").setLevel(logging.ERROR)
 
 logging.captureWarnings(True)
-warnings.filterwarnings('default', category=ResourceWarning)
-warnings.filterwarnings('default', category=DeprecationWarning)
-warnings.filterwarnings(
-    'ignore', category=DeprecationWarning, module='ptpython')
-warnings.filterwarnings(
-    'ignore', category=DeprecationWarning, module='jedi')
+warnings.filterwarnings("default", category=ResourceWarning)
+warnings.filterwarnings("default", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="ptpython")
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="jedi")
 
 
 rootlogger = logging.getLogger()
@@ -58,26 +56,29 @@ logger = logging.getLogger(__name__)
 
 def formatter(*, with_process_name: bool = False, with_thread_name: bool = False):
     tz = datetime.now().astimezone().tzname()
-    msg = '[%(asctime)s.%(msecs)03d ' + tz + \
-        '; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d'
+    msg = (
+        "[%(asctime)s.%(msecs)03d "
+        + tz
+        + "; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d"
+    )
 
     if with_process_name and with_thread_name:
-        fmt = f'{msg};  %(processName)s %(threadName)s]  %(message)s'
+        fmt = f"{msg};  %(processName)s %(threadName)s]  %(message)s"
     elif with_process_name:
-        fmt = f'{msg};  %(processName)s]  %(message)s'
+        fmt = f"{msg};  %(processName)s]  %(message)s"
     elif with_thread_name:
-        fmt = f'{msg};  %(threadName)s]  %(message)s'
+        fmt = f"{msg};  %(threadName)s]  %(message)s"
     else:
-        fmt = f'{msg}]  %(message)s'
+        fmt = f"{msg}]  %(message)s"
 
-    return logging.Formatter(fmt=fmt, datefmt='%Y-%m-%d %H:%M:%S')
+    return logging.Formatter(fmt=fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
 
 def set_level(level: Union[str, int] = logging.INFO):
-    '''
+    """
     In one application, call `set_level` on the top level once.
     Do not set level anywhere else, and do not set level on any handler.
-    '''
+    """
     if isinstance(level, str):
         level = getattr(logging, level.upper())
     level0 = rootlogger.level
@@ -86,50 +87,53 @@ def set_level(level: Union[str, int] = logging.INFO):
 
 
 def use_console_handler(**kwargs):
-    if any(getattr(h, '_name_', None) == 'console' for h in rootlogger.handlers):
-        raise RuntimeError('the console handler is already in being used')
+    if any(getattr(h, "_name_", None) == "console" for h in rootlogger.handlers):
+        raise RuntimeError("the console handler is already in being used")
     h = logging.StreamHandler()
     h.setFormatter(formatter(**kwargs))
-    h._name_ = 'console'
+    h._name_ = "console"
     rootlogger.addHandler(h)
 
 
 def _unuse_handler(name: str):
     for h in rootlogger.handlers:
-        if getattr(h, '_name_', None) == name:
+        if getattr(h, "_name_", None) == name:
             rootlogger.removeHandler(h)
             return 1
     return 0
 
 
 def unuse_console_handler():
-    return _unuse_handler('console')
+    return _unuse_handler("console")
 
 
-def use_disk_handler(*,
-                     foldername: str = None,
-                     maxBytes=1_000_000, backupCount=20, delay=True, **kwargs):
-    if any(getattr(h, '_name_', None) == 'disk' for h in rootlogger.handlers):
-        raise RuntimeError('the disk handler is already in being used')
+def use_disk_handler(
+    *, foldername: str = None, maxBytes=1_000_000, backupCount=20, delay=True, **kwargs
+):
+    if any(getattr(h, "_name_", None) == "disk" for h in rootlogger.handlers):
+        raise RuntimeError("the disk handler is already in being used")
 
     if foldername:
-        foldername = foldername.rstrip('/')
+        foldername = foldername.rstrip("/")
     else:
         launcher = inspect.stack()[1].filename
         foldername == f"{os.environ.get('LOGDIR', '/tmp/log')}/{launcher.lstrip('/').replace('/', '-')}"
     print(f"Log files are located in '{foldername}'")
     os.makedirs(foldername, exist_ok=True)
     h = logging.handlers.RotatingFileHandler(
-        filename=foldername + '/current',
-        maxBytes=maxBytes, backupCount=backupCount, delay=delay)
+        filename=foldername + "/current",
+        maxBytes=maxBytes,
+        backupCount=backupCount,
+        delay=delay,
+    )
     h.setFormatter(formatter(**kwargs))
-    h._name_ = 'disk'
+    h._name_ = "disk"
     rootlogger.addHandler(h)
     return foldername
 
 
 def unuse_disk_handler():
-    return _unuse_handler('disk')
+    return _unuse_handler("disk")
 
 
 def log_uncaught_exception(handlers=None, logger=logger):
@@ -144,13 +148,19 @@ def log_uncaught_exception(handlers=None, logger=logger):
                 logging.currentframe = lambda: sys._getframe(1)
             fn, lno, func, sinfo = logger.findCaller(stack_info=False, stacklevel=1)
             record = logger.makeRecord(
-                logger.name, logging.CRITICAL, fn, lno,
-                msg=exc_val, args=(), exc_info=(exc_type, exc_val, exc_tb),
-                func=func, sinfo=sinfo,
+                logger.name,
+                logging.CRITICAL,
+                fn,
+                lno,
+                msg=exc_val,
+                args=(),
+                exc_info=(exc_type, exc_val, exc_tb),
+                func=func,
+                sinfo=sinfo,
             )
 
             for h in rootlogger.handlers:
-                if getattr(h, '_name_', None) != 'console':
+                if getattr(h, "_name_", None) != "console":
                     h.handle(record)
 
         sys.__excepthook__(exc_type, exc_val, exc_tb)
