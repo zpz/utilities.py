@@ -1,0 +1,48 @@
+#!/bin/bash
+
+
+set -e
+remote="$1"
+url="$2"
+
+thisfile="${BASH_SOURCE[0]}"
+thisdir="$(cd "$(dirname "${thisfile}")"; pwd)"
+if [[ "$(basename "${thisdir}")" != .githooks ]]; then
+    # In this case, this script is not being executed directly;
+    # rather, it is being "sourced" from another repo. The sourcing
+    # script should have ensured that `pwd` is the repo's root directory.
+    rootdir="$(pwd)"
+else
+    rootdir="$(dirname "${thisdir}")"
+fi
+
+
+# Infer package name
+rm -rf "${rootdir}/src/*egg-info"
+pkg="$(ls "${rootdir}/src/")"
+if [[ "${pkg}" == *' '* ]]; then
+    >&2 echo "unable to infer package name"
+    exit 1
+fi
+pkg="${pkg%/}"
+
+
+SRC="${rootdir}/src/${pkg}"
+
+changed=$(python3 -m black --check -q "${SRC}"; echo $?)
+if [[ "${changed}" != 0 ]]; then
+    echo ==\> -\> -\> Formatting code by \`black\` ...
+    python3 -m black "${SRC}"
+    echo
+    echo Please add the reformatted files in a new commit and push again.
+    echo
+    exit 1
+fi
+
+echo =\>-\> Checking code by \`flake8\` ...
+python3 -m flake8 --ignore E203,E501,W503 "${SRC}" || exit 1
+echo Looks great!
+
+exit 0
+
+
