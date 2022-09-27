@@ -1,0 +1,11 @@
+Make sure the hook files are executable.
+
+In the repo's top directory on the development machine, do
+
+```
+$ git config --local core.hooksPath .githooks/
+```
+
+This sets the custom hooks directory. (The default is `.git/hooks`.)
+
+The hooks needs several Python packages. Make sure they are installed by `python3 -m pip install`.
