@@ -54,6 +54,16 @@ rootlogger = logging.getLogger()
 logger = logging.getLogger(__name__)
 
 
+def get_calling_file():
+    st = inspect.stack()
+    p = 'unknown'
+    for s in st:
+        if os.path.basename(s.filename) in ('<stdin>', 'runpy.py'):
+            break
+        p = os.path.abspath(s.filename)
+    return p
+
+
 def formatter(*, with_process_name: bool = False, with_thread_name: bool = False):
     tz = datetime.now().astimezone().tzname()
     msg = (
@@ -116,7 +126,7 @@ def use_disk_handler(
     if foldername:
         foldername = foldername.rstrip("/")
     else:
-        launcher = inspect.stack()[1].filename
+        launcher = get_calling_file()
         foldername == f"{os.environ.get('LOGDIR', '/tmp/log')}/{launcher.lstrip('/').replace('/', '-')}"
     print(f"Log files are located in '{foldername}'")
     os.makedirs(foldername, exist_ok=True)
