@@ -56,9 +56,9 @@ logger = logging.getLogger(__name__)
 
 def get_calling_file():
     st = inspect.stack()
-    p = 'unknown'
+    p = "unknown"
     for s in st:
-        if os.path.basename(s.filename) in ('<stdin>', 'runpy.py'):
+        if os.path.basename(s.filename) in ("<stdin>", "runpy.py"):
             break
         p = os.path.abspath(s.filename)
     return p
