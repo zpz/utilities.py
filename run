@@ -5,7 +5,7 @@
 
 set -e
 
-PARENT=zppz/py3:22.11.14
+PARENT=zppz/py3:22.11.25
 
 if [[ $# > 0 ]]; then
     if [[ $1 == --parent ]]; then
