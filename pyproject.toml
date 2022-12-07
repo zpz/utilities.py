@@ -43,6 +43,7 @@ test = [
     "pylint",
     "pylint-exit",
     "pytest",
+    "pytest-xdist",
 ]
 
 
