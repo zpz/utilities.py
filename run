@@ -1,72 +1,8 @@
 #!/bin/bash
 
-# This builds Docker image, starts a container,
-# and lands in it for interactive tests.
+export TINY=zppz/tiny:22.12.11
+export MINI="$(bash -c "$(docker run --rm ${TINY} cat /tools/find-image)" -- zppz/mini)"
+export PARENT=zppz/py3
 
-set -e
-
-PARENT=zppz/py3:22.11.25
-
-if [[ $# > 0 ]]; then
-    if [[ $1 == --parent ]]; then
-        shift
-        PARENT="$1"
-        shift
-    else
-        >&2 echo "unknown option '$1'"
-        exit 1
-    fi
-fi
-if [[ $# > 0 ]]; then
-    >&2 echo "unknown option '$1'"
-    exit 1
-fi
-
-
-
-# Infer package name:
-rm -rf src/*egg-info
-proj="$(ls src/)"
-if [[ $proj = *' '* ]]; then
-    >&2 echo "unable to infer project name"
-    exit 1
-fi
-PROJ=${proj%/}
-
-
-# Find all "extra-requires" names in the 'project.optional-dependencies' section.
-extras=$(python3 -c "import toml; print(','.join(toml.load('pyproject.toml')['project']['optional-dependencies'].keys()))")
-
-rm -f Dockerfile
-cat <<EOF >Dockerfile
-FROM ${PARENT}
-ENV PARENT_IMAGE ${PARENT}
-USER root
-
-COPY . /tmp/src/
-
-RUN python -m pip install /tmp/src/[${extras}] \\
-    && python -m pip uninstall -y ${PROJ} \\
-    && rm -rf /tmp/src
-EOF
-
-
-docker build -t ${PROJ}-dev:latest .
-rm -f Dockerfile
-
-# Absolute path of current directory:
-# THISDIR="$( dirname $( realpath "${BASH_SOURCE[0]}" ))"
-THISDIR="$( realpath "$(pwd)" )"
-# Releative to HOME:
-WORKDIR=${THISDIR#${HOME}}
-WORKDIR=${WORKDIR#/}
-workdir=/home/docker-user/${WORKDIR}
-
-docker run \
-    -it --rm \
-    -v $(pwd):${workdir} \
-    --workdir ${workdir} \
-    -e PYTHONPATH=${workdir}/src \
-    -e IMAGE_NAME=${PROJ} \
-    ${PROJ}-dev:latest \
-    bash
+# bash -c "$(docker run --rm ${MINI} cat /mini/pip-based/run)" -- "$@"
+../docker-mini/tools/pip-based/run

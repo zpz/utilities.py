@@ -1,12 +1,9 @@
-FROM zppz/py3:22.02.27
+FROM zppz/py3:22.11.25
+ENV PARENT_IMAGE zppz/py3:22.11.25
 USER root
 
-ARG PROJ
+COPY . /tmp/src/
 
-COPY . /src/
-
-RUN cd /src \
-    && python -m pip install -e .[tests] \
-    && python -m pip uninstall -y ${PROJ}
-
-USER docker-user
+RUN python -m pip install /tmp/src/[avro,lineprofiler,test] \
+    && python -m pip uninstall -y zpz \
+    && rm -rf /tmp/src
