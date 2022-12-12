@@ -53,7 +53,7 @@ name = "zpz"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-sv --log-cli-level info -p no:cacheprovider"
+addopts = "-sv --log-cli-level info -p no:cacheprovider -n auto"
 asyncio_mode = "auto"
 
 # Do not use `-n auto` because it has issue with `test_avro.py`.
