@@ -4,7 +4,6 @@ from time import sleep
 
 from zpz.timer import timed
 
-
 logger = logging.getLogger(__name__)
 
 

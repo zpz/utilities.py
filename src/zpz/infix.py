@@ -4,7 +4,7 @@ Recommendation for practical use of this decorator is not implied.
 """
 
 import functools
-from typing import Callable, Any
+from typing import Any, Callable
 
 
 class Infix:

@@ -23,7 +23,6 @@ import warnings
 from datetime import datetime
 from typing import Union
 
-
 # When exceptions are raised during logging, then,
 # the default implementation of handleError() in Handler
 # checks to see if a module-level variable,

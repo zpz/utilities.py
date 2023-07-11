@@ -14,5 +14,6 @@ def test_logging():
     logger.info('some info')
     logger.warning('warning!')
     logger.error('something is wrong!')
-    logger.critical('something terrible has happened! omg omg omg OMG OMG OMG next line OMG next line OMG yes go to next line\nOMG OMG')
-
+    logger.critical(
+        'something terrible has happened! omg omg omg OMG OMG OMG next line OMG next line OMG yes go to next line\nOMG OMG'
+    )

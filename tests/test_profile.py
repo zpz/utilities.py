@@ -5,7 +5,7 @@ from zpz import profile
 
 
 def foo():
-    result = 0.
+    result = 0.0
     for i in range(1000000):
         result += math.sin(i)
 
@@ -18,4 +18,3 @@ def test_profiler():
 def test_line_profiler():
     profile.lineprofiled()(foo)()
     subprocess.call(['rm', '-f', 'cprofile.out'])
-
