@@ -56,12 +56,17 @@ logger = logging.getLogger(__name__)
 
 def get_calling_file():
     st = inspect.stack()
-    p = "unknown"
+    caller = None
     for s in st:
-        if os.path.basename(s.filename) in ("<stdin>", "runpy.py"):
+        if os.path.basename(s.filename) == 'runpy.py':
             break
-        p = os.path.abspath(s.filename)
-    return p
+        if '_pytest/python.py' in s.filename:
+            # Don't follow into py.test; stop at the test file
+            break
+        if s.filename == '<stdin>':
+            break
+        caller = s
+    return caller
 
 
 def formatter(*, with_process_name: bool = False, with_thread_name: bool = False):
@@ -69,17 +74,18 @@ def formatter(*, with_process_name: bool = False, with_thread_name: bool = False
     msg = (
         "[%(asctime)s.%(msecs)03d "
         + tz
-        + "; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d"
+        + "; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]"
     )
+    msg += '  '
 
     if with_process_name and with_thread_name:
-        fmt = f"{msg};  %(processName)s %(threadName)s]  %(message)s"
+        fmt = f"{msg}[%(processName)s (%(process)d) %(threadName)s]  %(message)s"
     elif with_process_name:
-        fmt = f"{msg};  %(processName)s]  %(message)s"
+        fmt = f"{msg}[%(processName)s]  %(message)s"
     elif with_thread_name:
-        fmt = f"{msg};  %(threadName)s]  %(message)s"
+        fmt = f"{msg}[%(threadName)s]  %(message)s"
     else:
-        fmt = f"{msg}]  %(message)s"
+        fmt = f"{msg}%(message)s"
 
     return logging.Formatter(fmt=fmt, datefmt="%Y-%m-%d %H:%M:%S")
 
