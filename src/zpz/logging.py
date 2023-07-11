@@ -58,12 +58,12 @@ def get_calling_file():
     st = inspect.stack()
     caller = None
     for s in st:
-        if os.path.basename(s.filename) == 'runpy.py':
+        if os.path.basename(s.filename) == "runpy.py":
             break
-        if '_pytest/python.py' in s.filename:
+        if "_pytest/python.py" in s.filename:
             # Don't follow into py.test; stop at the test file
             break
-        if s.filename == '<stdin>':
+        if s.filename == "<stdin>":
             break
         caller = s
     return caller
@@ -76,7 +76,7 @@ def formatter(*, with_process_name: bool = False, with_thread_name: bool = False
         + tz
         + "; %(levelname)s; %(name)s, %(funcName)s, %(lineno)d]"
     )
-    msg += '  '
+    msg += "  "
 
     if with_process_name and with_thread_name:
         fmt = f"{msg}[%(processName)s (%(process)d) %(threadName)s]  %(message)s"
