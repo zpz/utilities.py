@@ -4,8 +4,8 @@ import warnings
 import zlib
 from typing import Union
 
-import avro.io
 import avro.datafile
+import avro.io
 import avro.schema
 import numpy
 

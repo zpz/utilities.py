@@ -7,5 +7,4 @@ def add(x, y):
 
 
 def test_infix():
-    assert add(3, 4) == (3 |add| 4)
-
+    assert add(3, 4) == (3 | add | 4)
